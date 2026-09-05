@@ -79,6 +79,44 @@ func TestEngineStopsOnFetchError(t *testing.T) {
 	}
 }
 
+// hangingProber simulates a Prober that blocks until ctx says stop — the
+// shape of a real subprocess call wired to exec.CommandContext — to check
+// that Engine.FetchTimeout bounds it even though the Prober never gives up
+// on its own.
+type hangingProber struct{}
+
+func (hangingProber) Fetch(ctx context.Context) ([]Event, bool, error) {
+	<-ctx.Done()
+	return nil, false, ctx.Err()
+}
+
+func TestEngineFetchTimeoutBoundsHangingProber(t *testing.T) {
+	var out, errOut bytes.Buffer
+	e := &Engine{Prober: hangingProber{}, FetchTimeout: 10 * time.Millisecond, Out: &out, Err: &errOut}
+
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		code, err := e.Run(context.Background())
+		done <- result{code, err}
+	}()
+
+	select {
+	case r := <-done:
+		if r.code != 1 {
+			t.Fatalf("code = %d, want 1", r.code)
+		}
+		if !errors.Is(r.err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v, want context.DeadlineExceeded", r.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return within FetchTimeout")
+	}
+}
+
 func TestEngineStopsPromptlyWhenContextCanceled(t *testing.T) {
 	prober := &scriptedProber{responses: []fetchResult{{done: false}}}
 	var out, errOut bytes.Buffer

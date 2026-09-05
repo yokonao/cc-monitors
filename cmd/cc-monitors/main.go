@@ -46,8 +46,12 @@ func newPRCICmd() *cobra.Command {
 			engine := &monitor.Engine{
 				Prober:   prcheck.NewChecker(args[0], interval),
 				Interval: interval,
-				Out:      os.Stdout,
-				Err:      os.Stderr,
+				// Generous backstop against a hung gh process: covers every
+				// retry attempt plus its interval wait, so it shouldn't fire
+				// during normal give-up behavior.
+				FetchTimeout: prcheck.MaxFetchFailures * (interval + 2*time.Minute),
+				Out:          os.Stdout,
+				Err:          os.Stderr,
 			}
 			code, err := engine.Run(cmd.Context())
 			if err != nil {

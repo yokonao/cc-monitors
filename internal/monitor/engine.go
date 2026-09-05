@@ -26,15 +26,22 @@ type Prober interface {
 type Engine struct {
 	Prober   Prober
 	Interval time.Duration
-	Out      io.Writer
-	Err      io.Writer
+
+	// FetchTimeout bounds a single Fetch call, as a coarse backstop against a
+	// Prober implementation that hangs instead of honoring ctx. Zero disables
+	// it. It should be set generously — it's not meant to fire in normal
+	// operation, including a Prober's own internal retries.
+	FetchTimeout time.Duration
+
+	Out io.Writer
+	Err io.Writer
 }
 
 // Run returns the process exit code, plus the error that caused a non-zero
 // exit (nil when the run finished cleanly).
 func (e *Engine) Run(ctx context.Context) (int, error) {
 	for {
-		events, done, err := e.Prober.Fetch(ctx)
+		events, done, err := e.fetch(ctx)
 		if err != nil {
 			return 1, err
 		}
@@ -52,6 +59,16 @@ func (e *Engine) Run(ctx context.Context) (int, error) {
 		case <-time.After(e.Interval):
 		}
 	}
+}
+
+func (e *Engine) fetch(ctx context.Context) ([]Event, bool, error) {
+	if e.FetchTimeout <= 0 {
+		return e.Prober.Fetch(ctx)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, e.FetchTimeout)
+	defer cancel()
+	return e.Prober.Fetch(ctx)
 }
 
 func (e *Engine) emit(ev Event) {
