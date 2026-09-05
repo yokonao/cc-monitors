@@ -74,8 +74,8 @@ func (e *Engine) fetch(ctx context.Context) ([]Event, bool, error) {
 func (e *Engine) emit(ev Event) {
 	line, err := json.Marshal(map[string]any{"event": ev.Name, "data": ev.Data})
 	if err != nil {
-		fmt.Fprintf(e.Err, "encode event %q: %v\n", ev.Name, err)
+		_, _ = fmt.Fprintf(e.Err, "encode event %q: %v\n", ev.Name, err)
 		return
 	}
-	fmt.Fprintln(e.Out, string(line))
+	_, _ = fmt.Fprintln(e.Out, string(line))
 }

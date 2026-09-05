@@ -110,7 +110,7 @@ func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
 			return checks, nil
 		}
 		lastErr = err
-		fmt.Fprintf(c.logger(), "fetch failed (%d/%d): %v\n", attempt, max, err)
+		_, _ = fmt.Fprintf(c.logger(), "fetch failed (%d/%d): %v\n", attempt, max, err)
 		if attempt < max {
 			select {
 			case <-ctx.Done():
@@ -119,7 +119,7 @@ func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
 			}
 		}
 	}
-	fmt.Fprintf(c.logger(), "giving up after %d consecutive fetch failures\n", max)
+	_, _ = fmt.Fprintf(c.logger(), "giving up after %d consecutive fetch failures\n", max)
 	return nil, lastErr
 }
 
@@ -128,7 +128,7 @@ func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
 // fell between polls and was never observed. All green is the one terminal state.
 func (c *Checker) Tick(checks []Check) ([]monitor.Event, bool) {
 	if len(checks) == 0 {
-		fmt.Fprintln(c.logger(), "no checks reported yet; waiting…")
+		_, _ = fmt.Fprintln(c.logger(), "no checks reported yet; waiting…")
 		return nil, false
 	}
 
