@@ -37,7 +37,7 @@ func TestEngineEmitsEventsAndStopsWhenDone(t *testing.T) {
 	var out, errOut bytes.Buffer
 	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
 
-	if code := e.Run(context.Background()); code != 0 {
+	if code, err := e.Run(context.Background()); code != 0 || err != nil {
 		t.Fatalf("code = %d, want 0", code)
 	}
 	if got := strings.TrimSpace(out.String()); got != `{"data":{"total":1},"event":"checks_passed"}` {
@@ -53,7 +53,7 @@ func TestEngineKeepsPollingUntilDone(t *testing.T) {
 	var out, errOut bytes.Buffer
 	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
 
-	if code := e.Run(context.Background()); code != 0 {
+	if code, err := e.Run(context.Background()); code != 0 || err != nil {
 		t.Fatalf("code = %d, want 0", code)
 	}
 	if p := prober.i; p != 2 {
@@ -62,12 +62,17 @@ func TestEngineKeepsPollingUntilDone(t *testing.T) {
 }
 
 func TestEngineStopsOnFetchError(t *testing.T) {
-	prober := &scriptedProber{responses: []fetchResult{{err: errors.New("gh boom")}}}
+	wantErr := errors.New("gh boom")
+	prober := &scriptedProber{responses: []fetchResult{{err: wantErr}}}
 	var out, errOut bytes.Buffer
 	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
 
-	if code := e.Run(context.Background()); code != 1 {
+	code, err := e.Run(context.Background())
+	if code != 1 {
 		t.Fatalf("code = %d, want 1", code)
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("err = %v, want %v", err, wantErr)
 	}
 	if out.Len() != 0 {
 		t.Fatalf("out = %q, want empty", out.String())
@@ -82,13 +87,23 @@ func TestEngineStopsPromptlyWhenContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	done := make(chan int, 1)
-	go func() { done <- e.Run(ctx) }()
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		code, err := e.Run(ctx)
+		done <- result{code, err}
+	}()
 
 	select {
-	case code := <-done:
-		if code != 1 {
-			t.Fatalf("code = %d, want 1", code)
+	case r := <-done:
+		if r.code != 1 {
+			t.Fatalf("code = %d, want 1", r.code)
+		}
+		if !errors.Is(r.err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", r.err)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Run did not return promptly after context cancellation")

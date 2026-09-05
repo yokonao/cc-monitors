@@ -30,23 +30,25 @@ type Engine struct {
 	Err      io.Writer
 }
 
-func (e *Engine) Run(ctx context.Context) int {
+// Run returns the process exit code, plus the error that caused a non-zero
+// exit (nil when the run finished cleanly).
+func (e *Engine) Run(ctx context.Context) (int, error) {
 	for {
 		events, done, err := e.Prober.Fetch(ctx)
 		if err != nil {
-			return 1
+			return 1, err
 		}
 
 		for _, ev := range events {
 			e.emit(ev)
 		}
 		if done {
-			return 0
+			return 0, nil
 		}
 
 		select {
 		case <-ctx.Done():
-			return 1
+			return 1, ctx.Err()
 		case <-time.After(e.Interval):
 		}
 	}

@@ -49,7 +49,11 @@ func newPRCICmd() *cobra.Command {
 				Out:      os.Stdout,
 				Err:      os.Stderr,
 			}
-			if code := engine.Run(cmd.Context()); code != 0 {
+			code, err := engine.Run(cmd.Context())
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			if code != 0 {
 				os.Exit(code)
 			}
 			return nil
