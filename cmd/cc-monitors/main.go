@@ -1,63 +1,55 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/yokonao/cc-monitors/internal/monitor"
 	"github.com/yokonao/cc-monitors/internal/prcheck"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-
-	switch os.Args[1] {
-	case "pr-ci":
-		os.Exit(runPRCI(os.Args[2:]))
-	default:
-		usage()
-		os.Exit(2)
+	if err := newRootCmd().Execute(); err != nil {
+		os.Exit(1)
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "usage: cc-monitors <command> [args]")
-	fmt.Fprintln(os.Stderr, "commands:")
-	fmt.Fprintln(os.Stderr, "  pr-ci <pr | url | branch> [--interval SECONDS]")
+func newRootCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "cc-monitors",
+		Short: "Monitors for Claude Code's Monitor tool",
+	}
+	root.AddCommand(newPRCICmd())
+	return root
 }
 
-func runPRCI(args []string) int {
-	fs := flag.NewFlagSet("pr-ci", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: cc-monitors pr-ci <pr | url | branch> [--interval SECONDS]")
-		fs.PrintDefaults()
-	}
-	interval := fs.Int("interval", int(prcheck.DefaultInterval/time.Second), "seconds between polls")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	if *interval <= 0 {
-		fmt.Fprintln(os.Stderr, "--interval must be positive")
-		return 2
-	}
+func newPRCICmd() *cobra.Command {
+	var interval time.Duration
 
-	pr := fs.Arg(0)
-	if pr == "" {
-		fs.Usage()
-		return 2
-	}
+	cmd := &cobra.Command{
+		Use:   "pr-ci <pr | url | branch>",
+		Short: "Watch a PR's CI checks, emitting check_failed / checks_passed events",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if interval <= 0 {
+				return fmt.Errorf("--interval must be positive")
+			}
 
-	pollInterval := time.Duration(*interval) * time.Second
-	engine := &monitor.Engine{
-		Prober:   prcheck.NewChecker(pr, pollInterval),
-		Interval: pollInterval,
-		Out:      os.Stdout,
-		Err:      os.Stderr,
+			engine := &monitor.Engine{
+				Prober:   prcheck.NewChecker(args[0], interval),
+				Interval: interval,
+				Out:      os.Stdout,
+				Err:      os.Stderr,
+			}
+			if code := engine.Run(); code != 0 {
+				os.Exit(code)
+			}
+			return nil
+		},
 	}
-	return engine.Run()
+	cmd.Flags().DurationVar(&interval, "interval", prcheck.DefaultInterval, "duration between polls")
+
+	return cmd
 }
