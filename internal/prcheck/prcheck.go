@@ -46,7 +46,7 @@ func FetchChecks(ctx context.Context, pr string) ([]Check, error) {
 	cmd := exec.CommandContext(ctx, "gh", "pr", "checks", pr, "--json", "name,bucket,link")
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
-	_ = cmd.Run()
+	runErr := cmd.Run()
 
 	if strings.TrimSpace(out.String()) != "" {
 		var checks []Check
@@ -58,10 +58,15 @@ func FetchChecks(ctx context.Context, pr string) ([]Check, error) {
 	if noChecksReported.MatchString(errBuf.String()) {
 		return []Check{}, nil
 	}
-	if strings.TrimSpace(errBuf.String()) == "" {
-		return nil, fmt.Errorf("no output from gh pr checks")
+	if msg := strings.TrimSpace(errBuf.String()); msg != "" {
+		return nil, fmt.Errorf("%s", msg)
 	}
-	return nil, fmt.Errorf("%s", strings.TrimSpace(errBuf.String()))
+	// gh printed nothing at all (to either stream) — surface why it didn't run
+	// (missing binary, killed by ctx, ...) instead of a generic message.
+	if runErr != nil {
+		return nil, fmt.Errorf("gh pr checks: %w", runErr)
+	}
+	return nil, fmt.Errorf("no output from gh pr checks")
 }
 
 // Checker implements monitor.Prober for a single PR.

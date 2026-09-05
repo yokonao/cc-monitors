@@ -17,6 +17,21 @@ func check(name, bucket string, run int) Check {
 	return Check{Name: name, Bucket: bucket, Link: "https://ci.test/" + name + "/" + strconv.Itoa(run)}
 }
 
+func TestFetchChecksSurfacesExecErrorWhenGHMissing(t *testing.T) {
+	t.Setenv("PATH", "")
+
+	_, err := FetchChecks(context.Background(), "123")
+	if err == nil {
+		t.Fatalf("want error")
+	}
+	if err.Error() == "no output from gh pr checks" {
+		t.Fatalf("err should surface the real exec failure, not the generic fallback: %v", err)
+	}
+	if !strings.Contains(err.Error(), "gh") {
+		t.Fatalf("err = %v, want it to mention gh", err)
+	}
+}
+
 func names(events []monitor.Event, name string) []string {
 	var out []string
 	for _, e := range events {
