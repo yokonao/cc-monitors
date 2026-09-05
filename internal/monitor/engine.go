@@ -13,40 +13,29 @@ type Event struct {
 	Data map[string]any
 }
 
-// Prober fetches state and turns it into events, deciding whether polling should
-// stop. Tick is only called after a successful Fetch.
-type Prober[T any] interface {
-	Fetch() (T, error)
-	Tick(T) (events []Event, done bool)
+// Prober fetches the next batch of events for one poll. Any retry policy for
+// transient fetch failures belongs to the Prober — the engine treats a non-nil
+// error as final and stops.
+type Prober interface {
+	Fetch() (events []Event, done bool, err error)
 }
 
-// Engine runs fetch -> tick -> emit -> sleep, repeating until Tick reports done
-// (exit 0) or MaxFetchFailures consecutive Fetch errors occur (exit 1).
-type Engine[T any] struct {
-	Prober           Prober[T]
-	Interval         time.Duration
-	MaxFetchFailures int
-	Out              io.Writer
-	Err              io.Writer
+// Engine runs fetch -> emit -> sleep, repeating until Fetch reports done
+// (exit 0) or a fetch error (exit 1).
+type Engine struct {
+	Prober   Prober
+	Interval time.Duration
+	Out      io.Writer
+	Err      io.Writer
 }
 
-func (e *Engine[T]) Run() int {
-	failures := 0
+func (e *Engine) Run() int {
 	for {
-		state, err := e.Prober.Fetch()
+		events, done, err := e.Prober.Fetch()
 		if err != nil {
-			failures++
-			fmt.Fprintf(e.Err, "fetch failed (%d/%d): %v\n", failures, e.MaxFetchFailures, err)
-			if failures >= e.MaxFetchFailures {
-				fmt.Fprintf(e.Err, "giving up after %d consecutive fetch failures\n", e.MaxFetchFailures)
-				return 1
-			}
-			time.Sleep(e.Interval)
-			continue
+			return 1
 		}
-		failures = 0
 
-		events, done := e.Prober.Tick(state)
 		for _, ev := range events {
 			e.emit(ev)
 		}
@@ -57,7 +46,7 @@ func (e *Engine[T]) Run() int {
 	}
 }
 
-func (e *Engine[T]) emit(ev Event) {
+func (e *Engine) emit(ev Event) {
 	line, err := json.Marshal(map[string]any{"event": ev.Name, "data": ev.Data})
 	if err != nil {
 		fmt.Fprintf(e.Err, "encode event %q: %v\n", ev.Name, err)

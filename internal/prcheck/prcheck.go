@@ -18,7 +18,7 @@ import (
 
 const (
 	DefaultInterval  = 30 * time.Second
-	MaxFetchFailures = 5 // consecutive gh failures before the engine gives up
+	MaxFetchFailures = 5 // consecutive gh failures before Checker.Fetch gives up
 )
 
 // Check mirrors one row of `gh pr checks --json name,bucket,link`.
@@ -37,8 +37,9 @@ var (
 
 var noChecksReported = regexp.MustCompile(`(?i)no checks reported`)
 
-// FetchChecks shells out to gh. gh exits non-zero while checks fail or pend but
-// still prints JSON, so the signal is parseable output, not exit status.
+// FetchChecks shells out to gh once. gh exits non-zero while checks fail or
+// pend but still prints JSON, so the signal is parseable output, not exit
+// status.
 func FetchChecks(pr string) ([]Check, error) {
 	var out, errBuf strings.Builder
 	cmd := exec.Command("gh", "pr", "checks", pr, "--json", "name,bucket,link")
@@ -62,20 +63,54 @@ func FetchChecks(pr string) ([]Check, error) {
 	return nil, fmt.Errorf("%s", strings.TrimSpace(errBuf.String()))
 }
 
-// Checker implements monitor.Prober[[]Check] for a single PR.
+// Checker implements monitor.Prober for a single PR.
 type Checker struct {
-	PR  string
-	Log io.Writer // where "no checks reported yet" goes; nil defaults to os.Stderr
+	PR               string
+	Interval         time.Duration // wait between retries, and between polls
+	MaxFetchFailures int           // 0 means MaxFetchFailures
+	Log              io.Writer     // retry/give-up logging; nil defaults to os.Stderr
 
+	fetch      func(pr string) ([]Check, error)
 	seenFailed map[[2]string]bool
 }
 
-func NewChecker(pr string) *Checker {
-	return &Checker{PR: pr}
+func NewChecker(pr string, interval time.Duration) *Checker {
+	return &Checker{PR: pr, Interval: interval, fetch: FetchChecks}
 }
 
-func (c *Checker) Fetch() ([]Check, error) {
-	return FetchChecks(c.PR)
+// Fetch implements monitor.Prober. It retries gh internally, waiting Interval
+// between attempts, up to MaxFetchFailures consecutive failures before giving
+// up — the engine sees at most one terminal error per poll.
+func (c *Checker) Fetch() ([]monitor.Event, bool, error) {
+	checks, err := c.fetchWithRetry()
+	if err != nil {
+		return nil, false, err
+	}
+
+	events, done := c.Tick(checks)
+	return events, done, nil
+}
+
+func (c *Checker) fetchWithRetry() ([]Check, error) {
+	max := c.MaxFetchFailures
+	if max <= 0 {
+		max = MaxFetchFailures
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= max; attempt++ {
+		checks, err := c.fetch(c.PR)
+		if err == nil {
+			return checks, nil
+		}
+		lastErr = err
+		fmt.Fprintf(c.logger(), "fetch failed (%d/%d): %v\n", attempt, max, err)
+		if attempt < max {
+			time.Sleep(c.Interval)
+		}
+	}
+	fmt.Fprintf(c.logger(), "giving up after %d consecutive fetch failures\n", max)
+	return nil, lastErr
 }
 
 // Tick announces each check the moment it turns red, keyed by [name, run URL] so

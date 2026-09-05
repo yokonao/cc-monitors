@@ -1,8 +1,11 @@
 package prcheck
 
 import (
+	"bytes"
+	"errors"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/yokonao/cc-monitors/internal/monitor"
@@ -31,7 +34,7 @@ func eventNames(events []monitor.Event) []string {
 }
 
 func TestAllGreenPasses(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 	events, done := c.Tick([]Check{check("test", "pass", 1), check("lint", "skipping", 1)})
 	if !done {
 		t.Fatalf("want done, got not done")
@@ -43,7 +46,7 @@ func TestAllGreenPasses(t *testing.T) {
 }
 
 func TestFixLoopReportsFailureThenPasses(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 
 	events, done := c.Tick([]Check{check("test", "fail", 1)})
 	if done {
@@ -66,7 +69,7 @@ func TestFixLoopReportsFailureThenPasses(t *testing.T) {
 }
 
 func TestFailureEmittedOnceWhileStillRed(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 
 	events, _ := c.Tick([]Check{check("test", "fail", 1)})
 	if len(events) != 1 {
@@ -90,7 +93,7 @@ func TestFailureEmittedOnceWhileStillRed(t *testing.T) {
 // A fix push starts a new run (new link); it must re-report even when the
 // intervening pending/green state fell between polls and was never observed.
 func TestNewRunReReportsFailure(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 
 	events, _ := c.Tick([]Check{check("test", "fail", 1)})
 	if len(names(events, "check_failed")) != 1 {
@@ -109,7 +112,7 @@ func TestNewRunReReportsFailure(t *testing.T) {
 }
 
 func TestEachRedCheckReported(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 
 	events, _ := c.Tick([]Check{check("test", "fail", 1), check("lint", "cancel", 1)})
 	got := names(events, "check_failed")
@@ -120,7 +123,7 @@ func TestEachRedCheckReported(t *testing.T) {
 }
 
 func TestWaitsThroughEmptyChecks(t *testing.T) {
-	c := NewChecker("123")
+	c := NewChecker("123", 0)
 
 	events, done := c.Tick(nil)
 	if done || len(events) != 0 {
@@ -130,5 +133,57 @@ func TestWaitsThroughEmptyChecks(t *testing.T) {
 	events, done = c.Tick([]Check{check("test", "pass", 1)})
 	if !done || !reflect.DeepEqual(eventNames(events), []string{"checks_passed"}) {
 		t.Fatalf("events = %+v done = %v", events, done)
+	}
+}
+
+func TestFetchRetriesThenSucceeds(t *testing.T) {
+	c := NewChecker("123", 0)
+	c.MaxFetchFailures = 3
+	var log bytes.Buffer
+	c.Log = &log
+
+	calls := 0
+	c.fetch = func(string) ([]Check, error) {
+		calls++
+		if calls < 3 {
+			return nil, errors.New("boom")
+		}
+		return []Check{check("test", "pass", 1)}, nil
+	}
+
+	events, done, err := c.Fetch()
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !done || !reflect.DeepEqual(eventNames(events), []string{"checks_passed"}) {
+		t.Fatalf("events = %+v done = %v", events, done)
+	}
+	if !strings.Contains(log.String(), "fetch failed (1/3): boom") || !strings.Contains(log.String(), "fetch failed (2/3): boom") {
+		t.Fatalf("log = %q", log.String())
+	}
+	if strings.Contains(log.String(), "giving up") {
+		t.Fatalf("should not give up: %q", log.String())
+	}
+}
+
+func TestFetchGivesUpAfterMaxFailures(t *testing.T) {
+	c := NewChecker("123", 0)
+	c.MaxFetchFailures = 2
+	var log bytes.Buffer
+	c.Log = &log
+	c.fetch = func(string) ([]Check, error) { return nil, errors.New("gh boom") }
+
+	_, done, err := c.Fetch()
+	if err == nil {
+		t.Fatalf("want error")
+	}
+	if done {
+		t.Fatalf("want not done")
+	}
+	if !strings.Contains(log.String(), "fetch failed (2/2): gh boom") {
+		t.Fatalf("log = %q", log.String())
+	}
+	if !strings.Contains(log.String(), "giving up after 2 consecutive fetch failures") {
+		t.Fatalf("log = %q", log.String())
 	}
 }

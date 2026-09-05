@@ -52,12 +52,12 @@ func runPRCI(args []string) int {
 		return 2
 	}
 
-	engine := &monitor.Engine[[]prcheck.Check]{
-		Prober:           prcheck.NewChecker(pr),
-		Interval:         time.Duration(*interval) * time.Second,
-		MaxFetchFailures: prcheck.MaxFetchFailures,
-		Out:              os.Stdout,
-		Err:              os.Stderr,
+	pollInterval := time.Duration(*interval) * time.Second
+	engine := &monitor.Engine{
+		Prober:   prcheck.NewChecker(pr, pollInterval),
+		Interval: pollInterval,
+		Out:      os.Stdout,
+		Err:      os.Stderr,
 	}
 	return engine.Run()
 }

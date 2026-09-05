@@ -7,39 +7,33 @@ import (
 	"testing"
 )
 
-// scriptedProber replays a fixed sequence of Fetch results: an error, or a
-// state to hand to a fixed Tick function.
-type scriptedProber struct {
-	responses []any // int (state) or error
-	i         int
-	tick      func(int) ([]Event, bool)
+type fetchResult struct {
+	events []Event
+	done   bool
+	err    error
 }
 
-func (p *scriptedProber) Fetch() (int, error) {
+// scriptedProber replays a fixed sequence of Fetch results.
+type scriptedProber struct {
+	responses []fetchResult
+	i         int
+}
+
+func (p *scriptedProber) Fetch() ([]Event, bool, error) {
 	if p.i >= len(p.responses) {
-		return 0, errors.New("script exhausted (run didn't terminate)")
+		return nil, false, errors.New("script exhausted (run didn't terminate)")
 	}
 	r := p.responses[p.i]
 	p.i++
-	if err, ok := r.(error); ok {
-		return 0, err
-	}
-	return r.(int), nil
-}
-
-func (p *scriptedProber) Tick(state int) ([]Event, bool) {
-	return p.tick(state)
+	return r.events, r.done, r.err
 }
 
 func TestEngineEmitsEventsAndStopsWhenDone(t *testing.T) {
-	prober := &scriptedProber{
-		responses: []any{1},
-		tick: func(n int) ([]Event, bool) {
-			return []Event{{Name: "checks_passed", Data: map[string]any{"total": n}}}, true
-		},
-	}
+	prober := &scriptedProber{responses: []fetchResult{
+		{events: []Event{{Name: "checks_passed", Data: map[string]any{"total": 1}}}, done: true},
+	}}
 	var out, errOut bytes.Buffer
-	e := &Engine[int]{Prober: prober, MaxFetchFailures: 5, Out: &out, Err: &errOut}
+	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
 
 	if code := e.Run(); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
@@ -49,37 +43,31 @@ func TestEngineEmitsEventsAndStopsWhenDone(t *testing.T) {
 	}
 }
 
-func TestEngineGivesUpAfterMaxFetchFailures(t *testing.T) {
-	prober := &scriptedProber{
-		responses: []any{errors.New("gh boom"), errors.New("gh boom")},
-		tick:      func(int) ([]Event, bool) { return nil, true },
-	}
+func TestEngineKeepsPollingUntilDone(t *testing.T) {
+	prober := &scriptedProber{responses: []fetchResult{
+		{done: false},
+		{events: []Event{{Name: "checks_passed", Data: map[string]any{"total": 1}}}, done: true},
+	}}
 	var out, errOut bytes.Buffer
-	e := &Engine[int]{Prober: prober, MaxFetchFailures: 2, Out: &out, Err: &errOut}
-
-	if code := e.Run(); code != 1 {
-		t.Fatalf("code = %d, want 1", code)
-	}
-	if !strings.Contains(errOut.String(), "fetch failed (2/2): gh boom") {
-		t.Fatalf("err = %q", errOut.String())
-	}
-	if !strings.Contains(errOut.String(), "giving up after 2 consecutive fetch failures") {
-		t.Fatalf("err = %q", errOut.String())
-	}
-}
-
-func TestEngineResetsFailureCountOnSuccess(t *testing.T) {
-	prober := &scriptedProber{
-		responses: []any{errors.New("boom"), errors.New("boom"), errors.New("boom"), errors.New("boom"), 1},
-		tick:      func(int) ([]Event, bool) { return nil, true },
-	}
-	var out, errOut bytes.Buffer
-	e := &Engine[int]{Prober: prober, MaxFetchFailures: 5, Out: &out, Err: &errOut}
+	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
 
 	if code := e.Run(); code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if strings.Contains(errOut.String(), "giving up") {
-		t.Fatalf("err = %q, should not give up", errOut.String())
+	if p := prober.i; p != 2 {
+		t.Fatalf("Fetch called %d times, want 2", p)
+	}
+}
+
+func TestEngineStopsOnFetchError(t *testing.T) {
+	prober := &scriptedProber{responses: []fetchResult{{err: errors.New("gh boom")}}}
+	var out, errOut bytes.Buffer
+	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
+
+	if code := e.Run(); code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("out = %q, want empty", out.String())
 	}
 }
