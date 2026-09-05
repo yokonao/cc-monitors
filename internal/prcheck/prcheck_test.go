@@ -2,11 +2,13 @@ package prcheck
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yokonao/cc-monitors/internal/monitor"
 )
@@ -143,7 +145,7 @@ func TestFetchRetriesThenSucceeds(t *testing.T) {
 	c.Log = &log
 
 	calls := 0
-	c.fetch = func(string) ([]Check, error) {
+	c.fetch = func(context.Context, string) ([]Check, error) {
 		calls++
 		if calls < 3 {
 			return nil, errors.New("boom")
@@ -151,7 +153,7 @@ func TestFetchRetriesThenSucceeds(t *testing.T) {
 		return []Check{check("test", "pass", 1)}, nil
 	}
 
-	events, done, err := c.Fetch()
+	events, done, err := c.Fetch(context.Background())
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -171,9 +173,9 @@ func TestFetchGivesUpAfterMaxFailures(t *testing.T) {
 	c.MaxFetchFailures = 2
 	var log bytes.Buffer
 	c.Log = &log
-	c.fetch = func(string) ([]Check, error) { return nil, errors.New("gh boom") }
+	c.fetch = func(context.Context, string) ([]Check, error) { return nil, errors.New("gh boom") }
 
-	_, done, err := c.Fetch()
+	_, done, err := c.Fetch(context.Background())
 	if err == nil {
 		t.Fatalf("want error")
 	}
@@ -185,5 +187,33 @@ func TestFetchGivesUpAfterMaxFailures(t *testing.T) {
 	}
 	if !strings.Contains(log.String(), "giving up after 2 consecutive fetch failures") {
 		t.Fatalf("log = %q", log.String())
+	}
+}
+
+func TestFetchStopsPromptlyWhenContextCanceled(t *testing.T) {
+	c := NewChecker("123", time.Hour)
+	c.MaxFetchFailures = 5
+	var log bytes.Buffer
+	c.Log = &log
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c.fetch = func(context.Context, string) ([]Check, error) {
+		cancel()
+		return nil, errors.New("boom")
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := c.Fetch(ctx)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatalf("want error")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Fetch did not return promptly after context cancellation")
 	}
 }

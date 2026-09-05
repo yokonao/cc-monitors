@@ -4,6 +4,7 @@
 package prcheck
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,9 +41,9 @@ var noChecksReported = regexp.MustCompile(`(?i)no checks reported`)
 // FetchChecks shells out to gh once. gh exits non-zero while checks fail or
 // pend but still prints JSON, so the signal is parseable output, not exit
 // status.
-func FetchChecks(pr string) ([]Check, error) {
+func FetchChecks(ctx context.Context, pr string) ([]Check, error) {
 	var out, errBuf strings.Builder
-	cmd := exec.Command("gh", "pr", "checks", pr, "--json", "name,bucket,link")
+	cmd := exec.CommandContext(ctx, "gh", "pr", "checks", pr, "--json", "name,bucket,link")
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 	_ = cmd.Run()
@@ -70,7 +71,7 @@ type Checker struct {
 	MaxFetchFailures int           // 0 means MaxFetchFailures
 	Log              io.Writer     // retry/give-up logging; nil defaults to os.Stderr
 
-	fetch      func(pr string) ([]Check, error)
+	fetch      func(ctx context.Context, pr string) ([]Check, error)
 	seenFailed map[[2]string]bool
 }
 
@@ -81,8 +82,8 @@ func NewChecker(pr string, interval time.Duration) *Checker {
 // Fetch implements monitor.Prober. It retries gh internally, waiting Interval
 // between attempts, up to MaxFetchFailures consecutive failures before giving
 // up — the engine sees at most one terminal error per poll.
-func (c *Checker) Fetch() ([]monitor.Event, bool, error) {
-	checks, err := c.fetchWithRetry()
+func (c *Checker) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
+	checks, err := c.fetchWithRetry(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -91,7 +92,7 @@ func (c *Checker) Fetch() ([]monitor.Event, bool, error) {
 	return events, done, nil
 }
 
-func (c *Checker) fetchWithRetry() ([]Check, error) {
+func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
 	max := c.MaxFetchFailures
 	if max <= 0 {
 		max = MaxFetchFailures
@@ -99,14 +100,18 @@ func (c *Checker) fetchWithRetry() ([]Check, error) {
 
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {
-		checks, err := c.fetch(c.PR)
+		checks, err := c.fetch(ctx, c.PR)
 		if err == nil {
 			return checks, nil
 		}
 		lastErr = err
 		fmt.Fprintf(c.logger(), "fetch failed (%d/%d): %v\n", attempt, max, err)
 		if attempt < max {
-			time.Sleep(c.Interval)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(c.Interval):
+			}
 		}
 	}
 	fmt.Fprintf(c.logger(), "giving up after %d consecutive fetch failures\n", max)

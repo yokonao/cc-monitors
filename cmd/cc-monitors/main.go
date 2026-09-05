@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,7 +14,10 @@ import (
 )
 
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
 }
@@ -43,7 +49,7 @@ func newPRCICmd() *cobra.Command {
 				Out:      os.Stdout,
 				Err:      os.Stderr,
 			}
-			if code := engine.Run(); code != 0 {
+			if code := engine.Run(cmd.Context()); code != 0 {
 				os.Exit(code)
 			}
 			return nil

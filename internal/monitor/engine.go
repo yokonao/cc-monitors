@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,13 +16,13 @@ type Event struct {
 
 // Prober fetches the next batch of events for one poll. Any retry policy for
 // transient fetch failures belongs to the Prober — the engine treats a non-nil
-// error as final and stops.
+// error as final and stops. Fetch should return promptly once ctx is done.
 type Prober interface {
-	Fetch() (events []Event, done bool, err error)
+	Fetch(ctx context.Context) (events []Event, done bool, err error)
 }
 
 // Engine runs fetch -> emit -> sleep, repeating until Fetch reports done
-// (exit 0) or a fetch error (exit 1).
+// (exit 0), a fetch error (exit 1), or ctx is canceled (exit 1).
 type Engine struct {
 	Prober   Prober
 	Interval time.Duration
@@ -29,9 +30,9 @@ type Engine struct {
 	Err      io.Writer
 }
 
-func (e *Engine) Run() int {
+func (e *Engine) Run(ctx context.Context) int {
 	for {
-		events, done, err := e.Prober.Fetch()
+		events, done, err := e.Prober.Fetch(ctx)
 		if err != nil {
 			return 1
 		}
@@ -42,7 +43,12 @@ func (e *Engine) Run() int {
 		if done {
 			return 0
 		}
-		time.Sleep(e.Interval)
+
+		select {
+		case <-ctx.Done():
+			return 1
+		case <-time.After(e.Interval):
+		}
 	}
 }
 
