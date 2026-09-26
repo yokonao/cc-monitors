@@ -8,16 +8,7 @@ lines.
 
 ## Install
 
-```
-go install github.com/yokonao/cc-monitors/cmd/cc-monitors@latest
-```
-
-Or grab a prebuilt binary from the [releases page](https://github.com/yokonao/cc-monitors/releases) (linux/darwin, amd64/arm64):
-
-```
-curl -sSL "https://github.com/yokonao/cc-monitors/releases/latest/download/cc-monitors_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
-  | tar xz -C /usr/local/bin cc-monitors
-```
+See [docs/install.md](docs/install.md).
 
 ## `pr-ci`
 
