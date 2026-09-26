@@ -25,14 +25,11 @@ type Snapshot struct {
 type Comment struct {
 	Kind      string
 	ID        int64
+	API       string // full REST URL; `gh api <API>` reads the latest state
 	Author    string
 	Body      string
-	URL       string
 	CreatedAt time.Time
 	State     string // review only
-	Path      string // review_comment only
-	Line      int    // review_comment only
-	InReplyTo int64  // review_comment only
 }
 
 // FetchSnapshot resolves pr (number, URL or branch) and reads its state plus
@@ -90,37 +87,28 @@ type apiComment struct {
 	User struct {
 		Login string `json:"login"`
 	} `json:"user"`
-	Body         string    `json:"body"`
-	HTMLURL      string    `json:"html_url"`
-	CreatedAt    time.Time `json:"created_at"`
-	SubmittedAt  time.Time `json:"submitted_at"`
-	State        string    `json:"state"`
-	Path         string    `json:"path"`
-	Line         *int      `json:"line"`
-	OriginalLine *int      `json:"original_line"`
-	InReplyToID  int64     `json:"in_reply_to_id"`
+	Body           string    `json:"body"`
+	URL            string    `json:"url"`
+	PullRequestURL string    `json:"pull_request_url"`
+	CreatedAt      time.Time `json:"created_at"`
+	SubmittedAt    time.Time `json:"submitted_at"`
+	State          string    `json:"state"`
 }
 
 func (a apiComment) toComment(kind string) Comment {
 	c := Comment{
 		Kind:      kind,
 		ID:        a.ID,
+		API:       a.URL,
 		Author:    a.User.Login,
 		Body:      a.Body,
-		URL:       a.HTMLURL,
 		CreatedAt: a.CreatedAt,
 		State:     a.State,
-		Path:      a.Path,
-		InReplyTo: a.InReplyToID,
 	}
+	// Reviews carry neither url nor created_at.
 	if kind == KindReview {
+		c.API = fmt.Sprintf("%s/reviews/%d", a.PullRequestURL, a.ID)
 		c.CreatedAt = a.SubmittedAt
-	}
-	// line is null once the diff moves past the comment.
-	if a.Line != nil {
-		c.Line = *a.Line
-	} else if a.OriginalLine != nil {
-		c.Line = *a.OriginalLine
 	}
 	return c
 }

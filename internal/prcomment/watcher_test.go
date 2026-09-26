@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 var t0 = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func comment(kind string, id int64, author string, min int) Comment {
-	return Comment{Kind: kind, ID: id, Author: author, Body: "hi", URL: "https://gh.test/" + kind, CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
+	return Comment{Kind: kind, ID: id, Author: author, Body: "hi", API: "https://api.test/" + kind, CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
 }
 
 func newWatcher() *Watcher {
@@ -55,11 +54,12 @@ func TestNewCommentsEmittedInOrder(t *testing.T) {
 	if done {
 		t.Fatalf("want not done")
 	}
-	if got := eventNames(events); !reflect.DeepEqual(got, []string{"comment", "review_comment"}) {
-		t.Fatalf("events = %v", got)
+	want := []monitor.Event{
+		NewCommentEvent{Kind: "comment", ID: 1, API: "https://api.test/comment"},
+		NewCommentEvent{Kind: "review_comment", ID: 1, API: "https://api.test/review_comment"},
 	}
-	if want := (CommentEvent{Author: "bob", Body: "hi", URL: "https://gh.test/comment"}); events[0] != want {
-		t.Fatalf("event = %+v", events[0])
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %+v", events)
 	}
 }
 
@@ -85,33 +85,8 @@ func TestReviewFiltering(t *testing.T) {
 	approved.State, approved.Body = "APPROVED", ""
 
 	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{empty, pending, approved}})
-	if len(events) != 1 || events[0].(ReviewEvent).State != "APPROVED" {
+	if len(events) != 1 || events[0].(NewCommentEvent).ID != 3 {
 		t.Fatalf("events = %+v", events)
-	}
-}
-
-func TestReviewCommentData(t *testing.T) {
-	w := newWatcher()
-	w.Tick(Snapshot{State: "OPEN"})
-
-	c := comment("review_comment", 1, "alice", 0)
-	c.Path, c.Line, c.InReplyTo = "main.go", 42, 7
-	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{c}})
-	want := ReviewCommentEvent{Author: "alice", Body: "hi", URL: "https://gh.test/review_comment", Path: "main.go", Line: 42, InReplyTo: 7}
-	if len(events) != 1 || events[0] != want {
-		t.Fatalf("events = %+v", events)
-	}
-}
-
-func TestLongBodyTruncated(t *testing.T) {
-	w := newWatcher()
-	w.Tick(Snapshot{State: "OPEN"})
-
-	c := comment("comment", 1, "alice", 0)
-	c.Body = strings.Repeat("あ", MaxBodyRunes+1)
-	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{c}})
-	if got := events[0].(CommentEvent).Body; got != strings.Repeat("あ", MaxBodyRunes)+"…" {
-		t.Fatalf("body len = %d", len([]rune(got)))
 	}
 }
 
@@ -123,7 +98,7 @@ func TestClosedEmitsCommentsThenExits(t *testing.T) {
 	if !done {
 		t.Fatalf("want done")
 	}
-	if got := eventNames(events); !reflect.DeepEqual(got, []string{"comment", "pr_closed"}) {
+	if got := eventNames(events); !reflect.DeepEqual(got, []string{"new_comment", "pr_closed"}) {
 		t.Fatalf("events = %v", got)
 	}
 	if events[1] != (PRClosedEvent{Merged: true}) {

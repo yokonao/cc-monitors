@@ -87,17 +87,16 @@ After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors p
 
 ### Events
 
-| event            | when                         | data                                                     | exit |
-| ---------------- | ---------------------------- | -------------------------------------------------------- | ---- |
-| `comment`        | new conversation comment     | `author`, `body`, `url`                                  | —    |
-| `review`         | new review submitted         | `author`, `state`, `body`, `url`                         | —    |
-| `review_comment` | new inline review comment    | `author`, `body`, `url`, `path`, `line`, `in_reply_to`?  | —    |
-| `pr_closed`      | PR merged or closed          | `merged`                                                 | 0    |
+| event         | when                             | data               | exit |
+| ------------- | -------------------------------- | ------------------ | ---- |
+| `new_comment` | a new comment or review appeared | `kind`, `id`, `api` | —    |
+| `pr_closed`   | PR merged or closed              | `merged`           | 0    |
 
-`body` is truncated to 1000 characters; follow `url` for the rest.
+Events carry no content: read the latest state with `gh api <api>`. `kind` is
+`comment` (conversation), `review` or `review_comment` (inline).
 
 ```json
-{"data":{"author":"alice","body":"nit: rename this","url":"https://…","path":"main.go","line":42},"event":"review_comment"}
+{"data":{"kind":"review_comment","id":1583153997,"api":"https://api.github.com/repos/cli/cli/pulls/comments/1583153997"},"event":"new_comment"}
 {"data":{"merged":true},"event":"pr_closed"}
 ```
 

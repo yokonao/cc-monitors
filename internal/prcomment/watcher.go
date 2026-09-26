@@ -1,6 +1,6 @@
 // Package prcomment watches a PR's conversation comments, reviews and inline
-// review comments via `gh`, emitting one monitor.Event per new comment and
-// pr_closed once the PR is merged or closed.
+// review comments via `gh`, emitting new_comment per new comment and pr_closed
+// once the PR is merged or closed.
 package prcomment
 
 import (
@@ -17,7 +17,6 @@ import (
 const (
 	DefaultInterval  = 30 * time.Second
 	MaxFetchFailures = 5
-	MaxBodyRunes     = 1000
 )
 
 // Watcher implements monitor.Prober for a single PR.
@@ -83,7 +82,7 @@ func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
 
 	var events []monitor.Event
 	for _, c := range fresh {
-		events = append(events, commentEvent(c))
+		events = append(events, NewCommentEvent{Kind: c.Kind, ID: c.ID, API: c.API})
 	}
 
 	if snap.State != "OPEN" {
@@ -107,25 +106,6 @@ func (w *Watcher) notable(c Comment) bool {
 		}
 	}
 	return true
-}
-
-func commentEvent(c Comment) monitor.Event {
-	body := truncate(c.Body)
-	switch c.Kind {
-	case KindReview:
-		return ReviewEvent{Author: c.Author, Body: body, URL: c.URL, State: c.State}
-	case KindReviewComment:
-		return ReviewCommentEvent{Author: c.Author, Body: body, URL: c.URL, Path: c.Path, Line: c.Line, InReplyTo: c.InReplyTo}
-	}
-	return CommentEvent{Author: c.Author, Body: body, URL: c.URL}
-}
-
-func truncate(s string) string {
-	r := []rune(s)
-	if len(r) <= MaxBodyRunes {
-		return s
-	}
-	return string(r[:MaxBodyRunes]) + "…"
 }
 
 func (w *Watcher) logger() io.Writer {
