@@ -123,7 +123,7 @@ func TestFetchResolvesSelfOnce(t *testing.T) {
 		calls++
 		return "me", nil
 	}
-	w.fetch = func(context.Context, string) (snapshot, error) {
+	w.fetch = func(context.Context) (snapshot, error) {
 		return snapshot{State: "OPEN", Comments: []comment{newComment("comment", 1, "me", 0)}}, nil
 	}
 

@@ -20,19 +20,22 @@ const (
 
 // Watcher implements monitor.Prober for a single PR.
 type Watcher struct {
-	PR               string
 	Interval         time.Duration
 	MaxFetchFailures int
 	Log              io.Writer
 
-	fetch     func(ctx context.Context, pr string) (snapshot, error)
+	fetch     func(ctx context.Context) (snapshot, error)
 	fetchSelf func(ctx context.Context) (string, error)
 	self      string
 	seen      map[string]bool // keyed by comment.API; nil until the baseline poll
 }
 
 func NewWatcher(pr string, interval time.Duration) *Watcher {
-	return &Watcher{PR: pr, Interval: interval, fetch: fetchSnapshot, fetchSelf: fetchSelf}
+	return &Watcher{
+		Interval:  interval,
+		fetch:     func(ctx context.Context) (snapshot, error) { return fetchSnapshot(ctx, pr) },
+		fetchSelf: fetchSelf,
+	}
 }
 
 func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
@@ -47,9 +50,7 @@ func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 		}
 		w.self = self
 	}
-	snap, err := monitor.Retry(ctx, max, w.Interval, w.logger(), func(ctx context.Context) (snapshot, error) {
-		return w.fetch(ctx, w.PR)
-	})
+	snap, err := monitor.Retry(ctx, max, w.Interval, w.logger(), w.fetch)
 	if err != nil {
 		return nil, false, err
 	}
