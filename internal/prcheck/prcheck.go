@@ -71,17 +71,19 @@ func fetchChecks(ctx context.Context, pr string) ([]check, error) {
 
 // Checker implements monitor.Prober for a single PR.
 type Checker struct {
-	PR               string
 	Interval         time.Duration // wait between retries, and between polls
 	MaxFetchFailures int           // 0 means MaxFetchFailures
 	Log              io.Writer     // retry/give-up logging; nil defaults to os.Stderr
 
-	fetch      func(ctx context.Context, pr string) ([]check, error)
+	fetch      func(ctx context.Context) ([]check, error)
 	seenFailed map[[2]string]bool
 }
 
 func NewChecker(pr string, interval time.Duration) *Checker {
-	return &Checker{PR: pr, Interval: interval, fetch: fetchChecks}
+	return &Checker{
+		Interval: interval,
+		fetch:    func(ctx context.Context) ([]check, error) { return fetchChecks(ctx, pr) },
+	}
 }
 
 // Fetch implements monitor.Prober. It retries gh internally, waiting Interval
@@ -102,9 +104,7 @@ func (c *Checker) fetchWithRetry(ctx context.Context) ([]check, error) {
 	if max <= 0 {
 		max = MaxFetchFailures
 	}
-	return monitor.Retry(ctx, max, c.Interval, c.logger(), func(ctx context.Context) ([]check, error) {
-		return c.fetch(ctx, c.PR)
-	})
+	return monitor.Retry(ctx, max, c.Interval, c.logger(), c.fetch)
 }
 
 // tick announces each check the moment it turns red, keyed by [name, run URL] so

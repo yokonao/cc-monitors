@@ -160,7 +160,7 @@ func TestFetchRetriesThenSucceeds(t *testing.T) {
 	c.Log = &log
 
 	calls := 0
-	c.fetch = func(context.Context, string) ([]check, error) {
+	c.fetch = func(context.Context) ([]check, error) {
 		calls++
 		if calls < 3 {
 			return nil, errors.New("boom")
@@ -188,7 +188,7 @@ func TestFetchGivesUpAfterMaxFailures(t *testing.T) {
 	c.MaxFetchFailures = 2
 	var log bytes.Buffer
 	c.Log = &log
-	c.fetch = func(context.Context, string) ([]check, error) { return nil, errors.New("gh boom") }
+	c.fetch = func(context.Context) ([]check, error) { return nil, errors.New("gh boom") }
 
 	_, done, err := c.Fetch(context.Background())
 	if err == nil {
@@ -212,7 +212,7 @@ func TestFetchStopsPromptlyWhenContextCanceled(t *testing.T) {
 	c.Log = &log
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c.fetch = func(context.Context, string) ([]check, error) {
+	c.fetch = func(context.Context) ([]check, error) {
 		cancel()
 		return nil, errors.New("boom")
 	}
