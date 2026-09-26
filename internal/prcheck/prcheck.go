@@ -102,25 +102,9 @@ func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
 	if max <= 0 {
 		max = MaxFetchFailures
 	}
-
-	var lastErr error
-	for attempt := 1; attempt <= max; attempt++ {
-		checks, err := c.fetch(ctx, c.PR)
-		if err == nil {
-			return checks, nil
-		}
-		lastErr = err
-		_, _ = fmt.Fprintf(c.logger(), "fetch failed (%d/%d): %v\n", attempt, max, err)
-		if attempt < max {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(c.Interval):
-			}
-		}
-	}
-	_, _ = fmt.Fprintf(c.logger(), "giving up after %d consecutive fetch failures\n", max)
-	return nil, lastErr
+	return monitor.Retry(ctx, max, c.Interval, c.logger(), func(ctx context.Context) ([]Check, error) {
+		return c.fetch(ctx, c.PR)
+	})
 }
 
 // Tick announces each check the moment it turns red, keyed by [name, run URL] so
