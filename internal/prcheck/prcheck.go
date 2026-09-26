@@ -127,10 +127,7 @@ func (c *Checker) Tick(checks []Check) ([]monitor.Event, bool) {
 			key := [2]string{ch.Name, ch.Link}
 			if !c.seenFailed[key] {
 				c.seenFailed[key] = true
-				events = append(events, monitor.Event{
-					Name: "check_failed",
-					Data: map[string]any{"name": ch.Name, "url": ch.Link},
-				})
+				events = append(events, CheckFailedEvent{Name: ch.Name, URL: ch.Link})
 			}
 		}
 		if !green[ch.Bucket] {
@@ -139,10 +136,7 @@ func (c *Checker) Tick(checks []Check) ([]monitor.Event, bool) {
 	}
 
 	if allGreen {
-		events = append(events, monitor.Event{
-			Name: "checks_passed",
-			Data: map[string]any{"total": len(checks)},
-		})
+		events = append(events, ChecksPassedEvent{Total: len(checks)})
 	}
 
 	return events, allGreen

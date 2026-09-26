@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+type testEvent struct {
+	Total int `json:"total"`
+}
+
+func (testEvent) EventName() string { return "checks_passed" }
+
 type fetchResult struct {
 	events []Event
 	done   bool
@@ -32,7 +38,7 @@ func (p *scriptedProber) Fetch(context.Context) ([]Event, bool, error) {
 
 func TestEngineEmitsEventsAndStopsWhenDone(t *testing.T) {
 	prober := &scriptedProber{responses: []fetchResult{
-		{events: []Event{{Name: "checks_passed", Data: map[string]any{"total": 1}}}, done: true},
+		{events: []Event{testEvent{Total: 1}}, done: true},
 	}}
 	var out, errOut bytes.Buffer
 	e := &Engine{Prober: prober, Out: &out, Err: &errOut}
@@ -48,7 +54,7 @@ func TestEngineEmitsEventsAndStopsWhenDone(t *testing.T) {
 func TestEngineKeepsPollingUntilDone(t *testing.T) {
 	prober := &scriptedProber{responses: []fetchResult{
 		{done: false},
-		{events: []Event{{Name: "checks_passed", Data: map[string]any{"total": 1}}}, done: true},
+		{events: []Event{testEvent{Total: 1}}, done: true},
 	}}
 	var out, errOut bytes.Buffer
 	e := &Engine{Prober: prober, Out: &out, Err: &errOut}

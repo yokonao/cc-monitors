@@ -35,8 +35,8 @@ func TestFetchChecksSurfacesExecErrorWhenGHMissing(t *testing.T) {
 func names(events []monitor.Event, name string) []string {
 	var out []string
 	for _, e := range events {
-		if e.Name == name {
-			out = append(out, e.Data["name"].(string))
+		if e.EventName() == name {
+			out = append(out, e.(CheckFailedEvent).Name)
 		}
 	}
 	return out
@@ -45,7 +45,7 @@ func names(events []monitor.Event, name string) []string {
 func eventNames(events []monitor.Event) []string {
 	var out []string
 	for _, e := range events {
-		out = append(out, e.Name)
+		out = append(out, e.EventName())
 	}
 	return out
 }
@@ -56,7 +56,7 @@ func TestAllGreenPasses(t *testing.T) {
 	if !done {
 		t.Fatalf("want done, got not done")
 	}
-	want := []monitor.Event{{Name: "checks_passed", Data: map[string]any{"total": 2}}}
+	want := []monitor.Event{ChecksPassedEvent{Total: 2}}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %+v, want %+v", events, want)
 	}
@@ -72,8 +72,8 @@ func TestFixLoopReportsFailureThenPasses(t *testing.T) {
 	if got := eventNames(events); !reflect.DeepEqual(got, []string{"check_failed"}) {
 		t.Fatalf("events = %v", got)
 	}
-	if events[0].Data["name"] != "test" || events[0].Data["url"] != "https://ci.test/test/1" {
-		t.Fatalf("data = %+v", events[0].Data)
+	if want := (CheckFailedEvent{Name: "test", URL: "https://ci.test/test/1"}); events[0] != want {
+		t.Fatalf("event = %+v", events[0])
 	}
 
 	events, done = c.Tick([]Check{check("test", "pass", 1)})

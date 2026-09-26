@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// Event is a line-delimited JSON event emitted as {"event": Name, "data": Data}.
-type Event struct {
-	Name string
-	Data map[string]any
+// Event is emitted as one line of JSON: {"event": EventName(), "data": <the
+// Event itself>}. Each monitor declares its events as structs in its event.go.
+type Event interface {
+	EventName() string
 }
 
 // Prober fetches the next batch of events for one poll. Any retry policy for
@@ -72,9 +72,9 @@ func (e *Engine) fetch(ctx context.Context) ([]Event, bool, error) {
 }
 
 func (e *Engine) emit(ev Event) {
-	line, err := json.Marshal(map[string]any{"event": ev.Name, "data": ev.Data})
+	line, err := json.Marshal(map[string]any{"event": ev.EventName(), "data": ev})
 	if err != nil {
-		_, _ = fmt.Fprintf(e.Err, "encode event %q: %v\n", ev.Name, err)
+		_, _ = fmt.Fprintf(e.Err, "encode event %q: %v\n", ev.EventName(), err)
 		return
 	}
 	_, _ = fmt.Fprintln(e.Out, string(line))
