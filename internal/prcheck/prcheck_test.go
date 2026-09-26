@@ -13,14 +13,14 @@ import (
 	"github.com/yokonao/cc-monitors/internal/monitor"
 )
 
-func check(name, bucket string, run int) Check {
-	return Check{Name: name, Bucket: bucket, Link: "https://ci.test/" + name + "/" + strconv.Itoa(run)}
+func newCheck(name, bucket string, run int) check {
+	return check{Name: name, Bucket: bucket, Link: "https://ci.test/" + name + "/" + strconv.Itoa(run)}
 }
 
 func TestFetchChecksSurfacesExecErrorWhenGHMissing(t *testing.T) {
 	t.Setenv("PATH", "")
 
-	_, err := FetchChecks(context.Background(), "123")
+	_, err := fetchChecks(context.Background(), "123")
 	if err == nil {
 		t.Fatalf("want error")
 	}
@@ -52,7 +52,7 @@ func eventNames(events []monitor.Event) []string {
 
 func TestAllGreenPasses(t *testing.T) {
 	c := NewChecker("123", 0)
-	events, done := c.Tick([]Check{check("test", "pass", 1), check("lint", "skipping", 1)})
+	events, done := c.tick([]check{newCheck("test", "pass", 1), newCheck("lint", "skipping", 1)})
 	if !done {
 		t.Fatalf("want done, got not done")
 	}
@@ -65,7 +65,7 @@ func TestAllGreenPasses(t *testing.T) {
 func TestFixLoopReportsFailureThenPasses(t *testing.T) {
 	c := NewChecker("123", 0)
 
-	events, done := c.Tick([]Check{check("test", "fail", 1)})
+	events, done := c.tick([]check{newCheck("test", "fail", 1)})
 	if done {
 		t.Fatalf("want not done after failure")
 	}
@@ -76,7 +76,7 @@ func TestFixLoopReportsFailureThenPasses(t *testing.T) {
 		t.Fatalf("event = %+v", events[0])
 	}
 
-	events, done = c.Tick([]Check{check("test", "pass", 1)})
+	events, done = c.tick([]check{newCheck("test", "pass", 1)})
 	if !done {
 		t.Fatalf("want done after fix")
 	}
@@ -88,12 +88,12 @@ func TestFixLoopReportsFailureThenPasses(t *testing.T) {
 func TestFailureEmittedOnceWhileStillRed(t *testing.T) {
 	c := NewChecker("123", 0)
 
-	events, _ := c.Tick([]Check{check("test", "fail", 1)})
+	events, _ := c.tick([]check{newCheck("test", "fail", 1)})
 	if len(events) != 1 {
 		t.Fatalf("first tick events = %+v", events)
 	}
 
-	events, done := c.Tick([]Check{check("test", "fail", 1)})
+	events, done := c.tick([]check{newCheck("test", "fail", 1)})
 	if len(events) != 0 {
 		t.Fatalf("re-poll of same failure should emit nothing, got %+v", events)
 	}
@@ -101,7 +101,7 @@ func TestFailureEmittedOnceWhileStillRed(t *testing.T) {
 		t.Fatalf("want not done while still red")
 	}
 
-	events, done = c.Tick([]Check{check("test", "pass", 1)})
+	events, done = c.tick([]check{newCheck("test", "pass", 1)})
 	if !done || !reflect.DeepEqual(eventNames(events), []string{"checks_passed"}) {
 		t.Fatalf("events = %+v done = %v", events, done)
 	}
@@ -112,17 +112,17 @@ func TestFailureEmittedOnceWhileStillRed(t *testing.T) {
 func TestNewRunReReportsFailure(t *testing.T) {
 	c := NewChecker("123", 0)
 
-	events, _ := c.Tick([]Check{check("test", "fail", 1)})
+	events, _ := c.tick([]check{newCheck("test", "fail", 1)})
 	if len(names(events, "check_failed")) != 1 {
 		t.Fatalf("run 1 events = %+v", events)
 	}
 
-	events, _ = c.Tick([]Check{check("test", "fail", 2)})
+	events, _ = c.tick([]check{newCheck("test", "fail", 2)})
 	if len(names(events, "check_failed")) != 1 {
 		t.Fatalf("run 2 should re-report, got %+v", events)
 	}
 
-	events, done := c.Tick([]Check{check("test", "pass", 2)})
+	events, done := c.tick([]check{newCheck("test", "pass", 2)})
 	if !done || !reflect.DeepEqual(eventNames(events), []string{"checks_passed"}) {
 		t.Fatalf("events = %+v done = %v", events, done)
 	}
@@ -131,7 +131,7 @@ func TestNewRunReReportsFailure(t *testing.T) {
 func TestEachRedCheckReported(t *testing.T) {
 	c := NewChecker("123", 0)
 
-	events, _ := c.Tick([]Check{check("test", "fail", 1), check("lint", "cancel", 1)})
+	events, _ := c.tick([]check{newCheck("test", "fail", 1), newCheck("lint", "cancel", 1)})
 	got := names(events, "check_failed")
 	want := []string{"test", "lint"}
 	if !reflect.DeepEqual(got, want) {
@@ -142,12 +142,12 @@ func TestEachRedCheckReported(t *testing.T) {
 func TestWaitsThroughEmptyChecks(t *testing.T) {
 	c := NewChecker("123", 0)
 
-	events, done := c.Tick(nil)
+	events, done := c.tick(nil)
 	if done || len(events) != 0 {
 		t.Fatalf("empty checks: events = %+v done = %v", events, done)
 	}
 
-	events, done = c.Tick([]Check{check("test", "pass", 1)})
+	events, done = c.tick([]check{newCheck("test", "pass", 1)})
 	if !done || !reflect.DeepEqual(eventNames(events), []string{"checks_passed"}) {
 		t.Fatalf("events = %+v done = %v", events, done)
 	}
@@ -160,12 +160,12 @@ func TestFetchRetriesThenSucceeds(t *testing.T) {
 	c.Log = &log
 
 	calls := 0
-	c.fetch = func(context.Context, string) ([]Check, error) {
+	c.fetch = func(context.Context, string) ([]check, error) {
 		calls++
 		if calls < 3 {
 			return nil, errors.New("boom")
 		}
-		return []Check{check("test", "pass", 1)}, nil
+		return []check{newCheck("test", "pass", 1)}, nil
 	}
 
 	events, done, err := c.Fetch(context.Background())
@@ -188,7 +188,7 @@ func TestFetchGivesUpAfterMaxFailures(t *testing.T) {
 	c.MaxFetchFailures = 2
 	var log bytes.Buffer
 	c.Log = &log
-	c.fetch = func(context.Context, string) ([]Check, error) { return nil, errors.New("gh boom") }
+	c.fetch = func(context.Context, string) ([]check, error) { return nil, errors.New("gh boom") }
 
 	_, done, err := c.Fetch(context.Background())
 	if err == nil {
@@ -212,7 +212,7 @@ func TestFetchStopsPromptlyWhenContextCanceled(t *testing.T) {
 	c.Log = &log
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c.fetch = func(context.Context, string) ([]Check, error) {
+	c.fetch = func(context.Context, string) ([]check, error) {
 		cancel()
 		return nil, errors.New("boom")
 	}

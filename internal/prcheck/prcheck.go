@@ -22,8 +22,8 @@ const (
 	MaxFetchFailures = 5 // consecutive gh failures before Checker.Fetch gives up
 )
 
-// Check mirrors one row of `gh pr checks --json name,bucket,link`.
-type Check struct {
+// check mirrors one row of `gh pr checks --json name,bucket,link`.
+type check struct {
 	Name   string `json:"name"`
 	Bucket string `json:"bucket"`
 	Link   string `json:"link"`
@@ -38,10 +38,10 @@ var (
 
 var noChecksReported = regexp.MustCompile(`(?i)no checks reported`)
 
-// FetchChecks shells out to gh once. gh exits non-zero while checks fail or
+// fetchChecks shells out to gh once. gh exits non-zero while checks fail or
 // pend but still prints JSON, so the signal is parseable output, not exit
 // status.
-func FetchChecks(ctx context.Context, pr string) ([]Check, error) {
+func fetchChecks(ctx context.Context, pr string) ([]check, error) {
 	var out, errBuf strings.Builder
 	cmd := exec.CommandContext(ctx, "gh", "pr", "checks", pr, "--json", "name,bucket,link")
 	cmd.Stdout = &out
@@ -49,14 +49,14 @@ func FetchChecks(ctx context.Context, pr string) ([]Check, error) {
 	runErr := cmd.Run()
 
 	if strings.TrimSpace(out.String()) != "" {
-		var checks []Check
+		var checks []check
 		if err := json.Unmarshal([]byte(out.String()), &checks); err != nil {
 			return nil, fmt.Errorf("unparseable gh output: %w", err)
 		}
 		return checks, nil
 	}
 	if noChecksReported.MatchString(errBuf.String()) {
-		return []Check{}, nil
+		return []check{}, nil
 	}
 	if msg := strings.TrimSpace(errBuf.String()); msg != "" {
 		return nil, fmt.Errorf("%s", msg)
@@ -76,12 +76,12 @@ type Checker struct {
 	MaxFetchFailures int           // 0 means MaxFetchFailures
 	Log              io.Writer     // retry/give-up logging; nil defaults to os.Stderr
 
-	fetch      func(ctx context.Context, pr string) ([]Check, error)
+	fetch      func(ctx context.Context, pr string) ([]check, error)
 	seenFailed map[[2]string]bool
 }
 
 func NewChecker(pr string, interval time.Duration) *Checker {
-	return &Checker{PR: pr, Interval: interval, fetch: FetchChecks}
+	return &Checker{PR: pr, Interval: interval, fetch: fetchChecks}
 }
 
 // Fetch implements monitor.Prober. It retries gh internally, waiting Interval
@@ -93,24 +93,24 @@ func (c *Checker) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 		return nil, false, err
 	}
 
-	events, done := c.Tick(checks)
+	events, done := c.tick(checks)
 	return events, done, nil
 }
 
-func (c *Checker) fetchWithRetry(ctx context.Context) ([]Check, error) {
+func (c *Checker) fetchWithRetry(ctx context.Context) ([]check, error) {
 	max := c.MaxFetchFailures
 	if max <= 0 {
 		max = MaxFetchFailures
 	}
-	return monitor.Retry(ctx, max, c.Interval, c.logger(), func(ctx context.Context) ([]Check, error) {
+	return monitor.Retry(ctx, max, c.Interval, c.logger(), func(ctx context.Context) ([]check, error) {
 		return c.fetch(ctx, c.PR)
 	})
 }
 
-// Tick announces each check the moment it turns red, keyed by [name, run URL] so
+// tick announces each check the moment it turns red, keyed by [name, run URL] so
 // a fresh failing run re-reports even when the intervening pending/green state
 // fell between polls and was never observed. All green is the one terminal state.
-func (c *Checker) Tick(checks []Check) ([]monitor.Event, bool) {
+func (c *Checker) tick(checks []check) ([]monitor.Event, bool) {
 	if len(checks) == 0 {
 		_, _ = fmt.Fprintln(c.logger(), "no checks reported yet; waiting…")
 		return nil, false
