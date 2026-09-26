@@ -26,14 +26,14 @@ type Watcher struct {
 	MaxFetchFailures int
 	Log              io.Writer
 
-	fetch     func(ctx context.Context, pr string) (Snapshot, error)
+	fetch     func(ctx context.Context, pr string) (snapshot, error)
 	fetchSelf func(ctx context.Context) (string, error)
 	self      string
-	seen      map[string]bool // keyed by Comment.API; nil until the baseline poll
+	seen      map[string]bool // keyed by comment.API; nil until the baseline poll
 }
 
 func NewWatcher(pr string, interval time.Duration) *Watcher {
-	return &Watcher{PR: pr, Interval: interval, fetch: FetchSnapshot, fetchSelf: FetchSelf}
+	return &Watcher{PR: pr, Interval: interval, fetch: fetchSnapshot, fetchSelf: fetchSelf}
 }
 
 func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
@@ -48,26 +48,26 @@ func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 		}
 		w.self = self
 	}
-	snap, err := monitor.Retry(ctx, max, w.Interval, w.logger(), func(ctx context.Context) (Snapshot, error) {
+	snap, err := monitor.Retry(ctx, max, w.Interval, w.logger(), func(ctx context.Context) (snapshot, error) {
 		return w.fetch(ctx, w.PR)
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	events, done := w.Tick(snap)
+	events, done := w.tick(snap)
 	return events, done, nil
 }
 
-// Tick treats the first snapshot as a baseline and reports only comments that
+// tick treats the first snapshot as a baseline and reports only comments that
 // appear after it. The watcher's own comments are skipped so Claude's replies
 // don't wake itself.
-func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
+func (w *Watcher) tick(snap snapshot) ([]monitor.Event, bool) {
 	baseline := w.seen == nil
 	if baseline {
 		w.seen = map[string]bool{}
 	}
 
-	var fresh []Comment
+	var fresh []comment
 	for _, c := range snap.Comments {
 		if w.seen[c.API] {
 			continue
@@ -91,11 +91,11 @@ func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
 	return events, false
 }
 
-func (w *Watcher) notable(c Comment) bool {
+func (w *Watcher) notable(c comment) bool {
 	if c.Author == w.self {
 		return false
 	}
-	if c.Kind == KindReview {
+	if c.Kind == kindReview {
 		switch c.State {
 		case "PENDING":
 			return false

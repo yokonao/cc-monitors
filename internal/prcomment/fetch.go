@@ -12,17 +12,17 @@ import (
 )
 
 const (
-	KindComment       = "comment"
-	KindReview        = "review"
-	KindReviewComment = "review_comment"
+	kindComment       = "comment"
+	kindReview        = "review"
+	kindReviewComment = "review_comment"
 )
 
-type Snapshot struct {
+type snapshot struct {
 	State    string // OPEN, CLOSED or MERGED
-	Comments []Comment
+	Comments []comment
 }
 
-type Comment struct {
+type comment struct {
 	Kind      string
 	ID        int64
 	API       string // full REST URL; `gh api <API>` reads the latest state
@@ -32,40 +32,40 @@ type Comment struct {
 	State     string // review only
 }
 
-// FetchSnapshot resolves pr (number, URL or branch) and reads its state plus
+// fetchSnapshot resolves pr (number, URL or branch) and reads its state plus
 // all three comment kinds.
-func FetchSnapshot(ctx context.Context, pr string) (Snapshot, error) {
+func fetchSnapshot(ctx context.Context, pr string) (snapshot, error) {
 	out, err := gh(ctx, "pr", "view", pr, "--json", "state,url")
 	if err != nil {
-		return Snapshot{}, err
+		return snapshot{}, err
 	}
 	var view struct {
 		State string `json:"state"`
 		URL   string `json:"url"`
 	}
 	if err := json.Unmarshal(out, &view); err != nil {
-		return Snapshot{}, fmt.Errorf("unparseable gh output: %w", err)
+		return snapshot{}, fmt.Errorf("unparseable gh output: %w", err)
 	}
 
 	u, err := url.Parse(view.URL)
 	if err != nil {
-		return Snapshot{}, err
+		return snapshot{}, err
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/") // owner/repo/pull/N
 	if len(parts) != 4 {
-		return Snapshot{}, fmt.Errorf("unexpected PR url %q", view.URL)
+		return snapshot{}, fmt.Errorf("unexpected PR url %q", view.URL)
 	}
 	repo, num := parts[0]+"/"+parts[1], parts[3]
 
-	snap := Snapshot{State: view.State}
+	snap := snapshot{State: view.State}
 	for _, src := range []struct{ kind, path string }{
-		{KindComment, "repos/" + repo + "/issues/" + num + "/comments"},
-		{KindReview, "repos/" + repo + "/pulls/" + num + "/reviews"},
-		{KindReviewComment, "repos/" + repo + "/pulls/" + num + "/comments"},
+		{kindComment, "repos/" + repo + "/issues/" + num + "/comments"},
+		{kindReview, "repos/" + repo + "/pulls/" + num + "/reviews"},
+		{kindReviewComment, "repos/" + repo + "/pulls/" + num + "/comments"},
 	} {
 		items, err := ghAPIList[apiComment](ctx, u.Host, src.path)
 		if err != nil {
-			return Snapshot{}, err
+			return snapshot{}, err
 		}
 		for _, it := range items {
 			snap.Comments = append(snap.Comments, it.toComment(src.kind))
@@ -74,7 +74,7 @@ func FetchSnapshot(ctx context.Context, pr string) (Snapshot, error) {
 	return snap, nil
 }
 
-func FetchSelf(ctx context.Context) (string, error) {
+func fetchSelf(ctx context.Context) (string, error) {
 	out, err := gh(ctx, "api", "user", "--jq", ".login")
 	if err != nil {
 		return "", err
@@ -95,8 +95,8 @@ type apiComment struct {
 	State          string    `json:"state"`
 }
 
-func (a apiComment) toComment(kind string) Comment {
-	c := Comment{
+func (a apiComment) toComment(kind string) comment {
+	c := comment{
 		Kind:      kind,
 		ID:        a.ID,
 		API:       a.URL,
@@ -106,7 +106,7 @@ func (a apiComment) toComment(kind string) Comment {
 		State:     a.State,
 	}
 	// Reviews carry neither url nor created_at.
-	if kind == KindReview {
+	if kind == kindReview {
 		c.API = fmt.Sprintf("%s/reviews/%d", a.PullRequestURL, a.ID)
 		c.CreatedAt = a.SubmittedAt
 	}
