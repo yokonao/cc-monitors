@@ -14,7 +14,7 @@ import (
 var t0 = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func newComment(kind string, id int64, author string, min int) comment {
-	return comment{Kind: kind, ID: id, Author: author, Body: "hi", API: fmt.Sprintf("https://api.test/%s/%d", kind, id), CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
+	return comment{Kind: kind, ID: id, Author: author, API: fmt.Sprintf("https://api.test/%s/%d", kind, id), CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
 }
 
 func newWatcher() *Watcher {
@@ -75,19 +75,19 @@ func TestSelfSkipped(t *testing.T) {
 }
 
 func TestReviewFiltering(t *testing.T) {
-	w := newWatcher()
-	w.tick(snapshot{State: "OPEN"})
-
-	empty := newComment("review", 1, "alice", 0)
-	empty.State, empty.Body = "COMMENTED", ""
-	pending := newComment("review", 2, "alice", 0)
-	pending.State = "PENDING"
-	approved := newComment("review", 3, "alice", 0)
-	approved.State, approved.Body = "APPROVED", ""
-
-	events, _ := w.tick(snapshot{State: "OPEN", Comments: []comment{empty, pending, approved}})
-	if len(events) != 1 || events[0].(NewCommentEvent).ID != 3 {
-		t.Fatalf("events = %+v", events)
+	for _, tc := range []struct {
+		state, body string
+		want        bool
+	}{
+		{"PENDING", "draft", false},
+		{"COMMENTED", " ", false},
+		{"COMMENTED", "see inline", true},
+		{"APPROVED", "", true},
+		{"CHANGES_REQUESTED", "", true},
+	} {
+		if _, ok := (apiReview{State: tc.state, Body: tc.body}).toComment(); ok != tc.want {
+			t.Errorf("%s %q: ok = %v, want %v", tc.state, tc.body, ok, tc.want)
+		}
 	}
 }
 

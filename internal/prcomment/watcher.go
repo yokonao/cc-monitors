@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/yokonao/cc-monitors/internal/monitor"
@@ -73,7 +72,7 @@ func (w *Watcher) tick(snap snapshot) ([]monitor.Event, bool) {
 			continue
 		}
 		w.seen[c.API] = true
-		if !baseline && w.notable(c) {
+		if !baseline && c.Author != w.self {
 			fresh = append(fresh, c)
 		}
 	}
@@ -89,22 +88,6 @@ func (w *Watcher) tick(snap snapshot) ([]monitor.Event, bool) {
 		return events, true
 	}
 	return events, false
-}
-
-func (w *Watcher) notable(c comment) bool {
-	if c.Author == w.self {
-		return false
-	}
-	if c.Kind == kindReview {
-		switch c.State {
-		case "PENDING":
-			return false
-		case "COMMENTED":
-			// The inline review_comments carry the content.
-			return strings.TrimSpace(c.Body) != ""
-		}
-	}
-	return true
 }
 
 func (w *Watcher) logger() io.Writer {

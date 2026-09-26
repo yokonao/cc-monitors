@@ -25,9 +25,7 @@ type comment struct {
 	ID        int64
 	API       string // full REST URL; `gh api <API>` reads the latest state
 	Author    string
-	Body      string
 	CreatedAt time.Time
-	State     string // review only
 }
 
 // fetchSnapshot resolves pr (number, URL or branch) and reads its state plus
