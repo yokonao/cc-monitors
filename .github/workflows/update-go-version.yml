@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
 
@@ -35,5 +34,3 @@ jobs:
           git commit -am "Update Go to $version"
           git push origin "$branch"
           gh pr create --fill
-          # PRs opened with GITHUB_TOKEN do not trigger pull_request workflows.
-          gh workflow run ci.yml --ref "$branch"
