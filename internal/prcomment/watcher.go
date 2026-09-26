@@ -17,7 +17,6 @@ import (
 const (
 	DefaultInterval  = 30 * time.Second
 	MaxFetchFailures = 5
-	MaxBodyRunes     = 1000
 )
 
 // Watcher implements monitor.Prober for a single PR.
@@ -83,14 +82,11 @@ func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
 
 	var events []monitor.Event
 	for _, c := range fresh {
-		events = append(events, toEvent(c))
+		events = append(events, commentEvent(c))
 	}
 
 	if snap.State != "OPEN" {
-		events = append(events, monitor.Event{
-			Name: "pr_closed",
-			Data: map[string]any{"merged": snap.State == "MERGED"},
-		})
+		events = append(events, closedEvent(snap.State == "MERGED"))
 		return events, true
 	}
 	return events, false
@@ -100,7 +96,7 @@ func (w *Watcher) notable(c Comment) bool {
 	if c.Author == w.self {
 		return false
 	}
-	if c.Kind == "review" {
+	if c.Kind == EventReview {
 		switch c.State {
 		case "PENDING":
 			return false
@@ -110,29 +106,6 @@ func (w *Watcher) notable(c Comment) bool {
 		}
 	}
 	return true
-}
-
-func toEvent(c Comment) monitor.Event {
-	data := map[string]any{"author": c.Author, "body": truncate(c.Body), "url": c.URL}
-	switch c.Kind {
-	case "review":
-		data["state"] = c.State
-	case "review_comment":
-		data["path"] = c.Path
-		data["line"] = c.Line
-		if c.InReplyTo != 0 {
-			data["in_reply_to"] = c.InReplyTo
-		}
-	}
-	return monitor.Event{Name: c.Kind, Data: data}
-}
-
-func truncate(s string) string {
-	r := []rune(s)
-	if len(r) <= MaxBodyRunes {
-		return s
-	}
-	return string(r[:MaxBodyRunes]) + "…"
 }
 
 func (w *Watcher) logger() io.Writer {
