@@ -17,6 +17,7 @@ import (
 const (
 	DefaultInterval  = 30 * time.Second
 	MaxFetchFailures = 5
+	MaxBodyRunes     = 1000
 )
 
 // Watcher implements monitor.Prober for a single PR.
@@ -86,7 +87,7 @@ func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
 	}
 
 	if snap.State != "OPEN" {
-		events = append(events, closedEvent(snap.State == "MERGED"))
+		events = append(events, PRClosedEvent{Merged: snap.State == "MERGED"})
 		return events, true
 	}
 	return events, false
@@ -96,7 +97,7 @@ func (w *Watcher) notable(c Comment) bool {
 	if c.Author == w.self {
 		return false
 	}
-	if c.Kind == EventReview {
+	if c.Kind == KindReview {
 		switch c.State {
 		case "PENDING":
 			return false
@@ -106,6 +107,25 @@ func (w *Watcher) notable(c Comment) bool {
 		}
 	}
 	return true
+}
+
+func commentEvent(c Comment) monitor.Event {
+	body := truncate(c.Body)
+	switch c.Kind {
+	case KindReview:
+		return ReviewEvent{Author: c.Author, Body: body, URL: c.URL, State: c.State}
+	case KindReviewComment:
+		return ReviewCommentEvent{Author: c.Author, Body: body, URL: c.URL, Path: c.Path, Line: c.Line, InReplyTo: c.InReplyTo}
+	}
+	return CommentEvent{Author: c.Author, Body: body, URL: c.URL}
+}
+
+func truncate(s string) string {
+	r := []rune(s)
+	if len(r) <= MaxBodyRunes {
+		return s
+	}
+	return string(r[:MaxBodyRunes]) + "…"
 }
 
 func (w *Watcher) logger() io.Writer {

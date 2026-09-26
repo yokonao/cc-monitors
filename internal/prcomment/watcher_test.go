@@ -26,7 +26,7 @@ func newWatcher() *Watcher {
 func eventNames(events []monitor.Event) []string {
 	var out []string
 	for _, e := range events {
-		out = append(out, e.Name)
+		out = append(out, e.EventName())
 	}
 	return out
 }
@@ -58,9 +58,8 @@ func TestNewCommentsEmittedInOrder(t *testing.T) {
 	if got := eventNames(events); !reflect.DeepEqual(got, []string{"comment", "review_comment"}) {
 		t.Fatalf("events = %v", got)
 	}
-	want := map[string]any{"author": "bob", "body": "hi", "url": "https://gh.test/comment"}
-	if !reflect.DeepEqual(events[0].Data, want) {
-		t.Fatalf("data = %+v", events[0].Data)
+	if want := (CommentEvent{Author: "bob", Body: "hi", URL: "https://gh.test/comment"}); events[0] != want {
+		t.Fatalf("event = %+v", events[0])
 	}
 }
 
@@ -86,7 +85,7 @@ func TestReviewFiltering(t *testing.T) {
 	approved.State, approved.Body = "APPROVED", ""
 
 	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{empty, pending, approved}})
-	if len(events) != 1 || events[0].Data["state"] != "APPROVED" {
+	if len(events) != 1 || events[0].(ReviewEvent).State != "APPROVED" {
 		t.Fatalf("events = %+v", events)
 	}
 }
@@ -98,8 +97,8 @@ func TestReviewCommentData(t *testing.T) {
 	c := comment("review_comment", 1, "alice", 0)
 	c.Path, c.Line, c.InReplyTo = "main.go", 42, 7
 	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{c}})
-	want := map[string]any{"author": "alice", "body": "hi", "url": "https://gh.test/review_comment", "path": "main.go", "line": 42, "in_reply_to": int64(7)}
-	if len(events) != 1 || !reflect.DeepEqual(events[0].Data, want) {
+	want := ReviewCommentEvent{Author: "alice", Body: "hi", URL: "https://gh.test/review_comment", Path: "main.go", Line: 42, InReplyTo: 7}
+	if len(events) != 1 || events[0] != want {
 		t.Fatalf("events = %+v", events)
 	}
 }
@@ -111,7 +110,7 @@ func TestLongBodyTruncated(t *testing.T) {
 	c := comment("comment", 1, "alice", 0)
 	c.Body = strings.Repeat("あ", MaxBodyRunes+1)
 	events, _ := w.Tick(Snapshot{State: "OPEN", Comments: []Comment{c}})
-	if got := events[0].Data["body"].(string); got != strings.Repeat("あ", MaxBodyRunes)+"…" {
+	if got := events[0].(CommentEvent).Body; got != strings.Repeat("あ", MaxBodyRunes)+"…" {
 		t.Fatalf("body len = %d", len([]rune(got)))
 	}
 }
@@ -127,8 +126,8 @@ func TestClosedEmitsCommentsThenExits(t *testing.T) {
 	if got := eventNames(events); !reflect.DeepEqual(got, []string{"comment", "pr_closed"}) {
 		t.Fatalf("events = %v", got)
 	}
-	if events[1].Data["merged"] != true {
-		t.Fatalf("data = %+v", events[1].Data)
+	if events[1] != (PRClosedEvent{Merged: true}) {
+		t.Fatalf("event = %+v", events[1])
 	}
 }
 

@@ -11,13 +11,19 @@ import (
 	"time"
 )
 
+const (
+	KindComment       = "comment"
+	KindReview        = "review"
+	KindReviewComment = "review_comment"
+)
+
 type Snapshot struct {
 	State    string // OPEN, CLOSED or MERGED
 	Comments []Comment
 }
 
 type Comment struct {
-	Kind      string // EventComment, EventReview or EventReviewComment
+	Kind      string
 	ID        int64
 	Author    string
 	Body      string
@@ -56,9 +62,9 @@ func FetchSnapshot(ctx context.Context, pr string) (Snapshot, error) {
 
 	snap := Snapshot{State: view.State}
 	for _, src := range []struct{ kind, path string }{
-		{EventComment, "repos/" + repo + "/issues/" + num + "/comments"},
-		{EventReview, "repos/" + repo + "/pulls/" + num + "/reviews"},
-		{EventReviewComment, "repos/" + repo + "/pulls/" + num + "/comments"},
+		{KindComment, "repos/" + repo + "/issues/" + num + "/comments"},
+		{KindReview, "repos/" + repo + "/pulls/" + num + "/reviews"},
+		{KindReviewComment, "repos/" + repo + "/pulls/" + num + "/comments"},
 	} {
 		items, err := ghAPIList[apiComment](ctx, u.Host, src.path)
 		if err != nil {
@@ -107,7 +113,7 @@ func (a apiComment) toComment(kind string) Comment {
 		Path:      a.Path,
 		InReplyTo: a.InReplyToID,
 	}
-	if kind == EventReview {
+	if kind == KindReview {
 		c.CreatedAt = a.SubmittedAt
 	}
 	// line is null once the diff moves past the comment.

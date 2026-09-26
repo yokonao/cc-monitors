@@ -97,7 +97,7 @@ After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors p
 `body` is truncated to 1000 characters; follow `url` for the rest.
 
 ```json
-{"data":{"author":"alice","body":"nit: rename this","line":42,"path":"main.go","url":"https://…"},"event":"review_comment"}
+{"data":{"author":"alice","body":"nit: rename this","url":"https://…","path":"main.go","line":42},"event":"review_comment"}
 {"data":{"merged":true},"event":"pr_closed"}
 ```
 
