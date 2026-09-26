@@ -96,7 +96,8 @@ reason on stderr.
 
 ## Development
 
-```
+```sh
 go test ./...
-golangci-lint run ./...
+golangci-lint run
+golangci-lint fmt
 ```
