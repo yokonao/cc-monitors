@@ -59,6 +59,51 @@ After a PR or fix push, watch CI: Monitor({ command: "cc-monitors pr-ci <pr>", d
 After 5 consecutive `gh` failures, the process exits non-zero with the
 reason on stderr.
 
+## `pr-comments`
+
+Watches a PR for new conversation comments, reviews and inline review
+comments, until the PR is merged or closed (exit 0). Comments that already
+exist at startup are not reported, nor are your own (so Claude's replies via
+`gh` don't wake itself). Reviews without a body in the `COMMENTED` state are
+skipped, since their inline comments are reported individually.
+
+### Requirements
+
+- [`gh`](https://cli.github.com/) authenticated (`gh auth login`)
+
+### Usage
+
+```
+cc-monitors pr-comments <pr | url | branch> [--interval DURATION]
+```
+
+`--interval` takes a Go duration (e.g. `30s`, `1m`) and defaults to `30s`.
+
+### Prompt
+
+```
+After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors pr-comments <pr>", description: "PR <pr> comments", persistent: true })
+```
+
+### Events
+
+| event            | when                         | data                                                     | exit |
+| ---------------- | ---------------------------- | -------------------------------------------------------- | ---- |
+| `comment`        | new conversation comment     | `author`, `body`, `url`                                  | —    |
+| `review`         | new review submitted         | `author`, `state`, `body`, `url`                         | —    |
+| `review_comment` | new inline review comment    | `author`, `body`, `url`, `path`, `line`, `in_reply_to`?  | —    |
+| `pr_closed`      | PR merged or closed          | `merged`                                                 | 0    |
+
+`body` is truncated to 1000 characters; follow `url` for the rest.
+
+```json
+{"data":{"author":"alice","body":"nit: rename this","line":42,"path":"main.go","url":"https://…"},"event":"review_comment"}
+{"data":{"merged":true},"event":"pr_closed"}
+```
+
+After 5 consecutive `gh` failures, the process exits non-zero with the
+reason on stderr.
+
 ## Development
 
 ```
