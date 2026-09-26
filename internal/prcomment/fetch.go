@@ -2,10 +2,11 @@ package prcomment
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/url"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
@@ -35,7 +36,10 @@ func FetchSnapshot(ctx context.Context, pr string) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	var view struct{ State, URL string }
+	var view struct {
+		State string `json:"state"`
+		URL   string `json:"url"`
+	}
 	if err := json.Unmarshal(out, &view); err != nil {
 		return Snapshot{}, fmt.Errorf("unparseable gh output: %w", err)
 	}
@@ -76,17 +80,19 @@ func FetchSelf(ctx context.Context) (string, error) {
 }
 
 type apiComment struct {
-	ID           int64                  `json:"id"`
-	User         struct{ Login string } `json:"user"`
-	Body         string                 `json:"body"`
-	HTMLURL      string                 `json:"html_url"`
-	CreatedAt    time.Time              `json:"created_at"`
-	SubmittedAt  time.Time              `json:"submitted_at"`
-	State        string                 `json:"state"`
-	Path         string                 `json:"path"`
-	Line         *int                   `json:"line"`
-	OriginalLine *int                   `json:"original_line"`
-	InReplyToID  int64                  `json:"in_reply_to_id"`
+	ID   int64 `json:"id"`
+	User struct {
+		Login string `json:"login"`
+	} `json:"user"`
+	Body         string    `json:"body"`
+	HTMLURL      string    `json:"html_url"`
+	CreatedAt    time.Time `json:"created_at"`
+	SubmittedAt  time.Time `json:"submitted_at"`
+	State        string    `json:"state"`
+	Path         string    `json:"path"`
+	Line         *int      `json:"line"`
+	OriginalLine *int      `json:"original_line"`
+	InReplyToID  int64     `json:"in_reply_to_id"`
 }
 
 func (a apiComment) toComment(kind string) Comment {
@@ -113,22 +119,17 @@ func (a apiComment) toComment(kind string) Comment {
 	return c
 }
 
-// ghAPIList pages through a REST list endpoint, decoding one element per line.
+// ghAPIList pages through a REST list endpoint and flattens the pages.
 func ghAPIList[T any](ctx context.Context, host, path string) ([]T, error) {
-	out, err := gh(ctx, "api", "--hostname", host, "--paginate", "--jq", ".[]", path)
+	out, err := gh(ctx, "api", "--hostname", host, "--paginate", "--slurp", path)
 	if err != nil {
 		return nil, err
 	}
-	var items []T
-	dec := json.NewDecoder(strings.NewReader(string(out)))
-	for dec.More() {
-		var v T
-		if err := dec.Decode(&v); err != nil {
-			return nil, fmt.Errorf("unparseable gh output: %w", err)
-		}
-		items = append(items, v)
+	var pages [][]T
+	if err := json.Unmarshal(out, &pages); err != nil {
+		return nil, fmt.Errorf("unparseable gh output: %w", err)
 	}
-	return items, nil
+	return slices.Concat(pages...), nil
 }
 
 func gh(ctx context.Context, args ...string) ([]byte, error) {
