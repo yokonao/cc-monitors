@@ -5,8 +5,6 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"net/url"
-	"os/exec"
-	"slices"
 	"strings"
 	"time"
 )
@@ -74,101 +72,4 @@ func fetchSnapshot(ctx context.Context, pr string) (snapshot, error) {
 		snap.Comments = append(snap.Comments, cs...)
 	}
 	return snap, nil
-}
-
-func fetchSelf(ctx context.Context) (string, error) {
-	out, err := gh(ctx, "api", "user", "--jq", ".login")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-type apiUser struct {
-	Login string `json:"login"`
-}
-
-type apiIssueComment struct {
-	ID        int64     `json:"id"`
-	User      apiUser   `json:"user"`
-	Body      string    `json:"body"`
-	URL       string    `json:"url"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func (a apiIssueComment) toComment() comment {
-	return comment{Kind: kindComment, ID: a.ID, API: a.URL, Author: a.User.Login, Body: a.Body, CreatedAt: a.CreatedAt}
-}
-
-type apiReview struct {
-	ID             int64     `json:"id"`
-	User           apiUser   `json:"user"`
-	Body           string    `json:"body"`
-	PullRequestURL string    `json:"pull_request_url"`
-	SubmittedAt    time.Time `json:"submitted_at"`
-	State          string    `json:"state"`
-}
-
-// Reviews have no url of their own, so API is built from the PR's.
-func (a apiReview) toComment() comment {
-	return comment{
-		Kind:      kindReview,
-		ID:        a.ID,
-		API:       fmt.Sprintf("%s/reviews/%d", a.PullRequestURL, a.ID),
-		Author:    a.User.Login,
-		Body:      a.Body,
-		CreatedAt: a.SubmittedAt,
-		State:     a.State,
-	}
-}
-
-type apiReviewComment struct {
-	ID        int64     `json:"id"`
-	User      apiUser   `json:"user"`
-	Body      string    `json:"body"`
-	URL       string    `json:"url"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func (a apiReviewComment) toComment() comment {
-	return comment{Kind: kindReviewComment, ID: a.ID, API: a.URL, Author: a.User.Login, Body: a.Body, CreatedAt: a.CreatedAt}
-}
-
-func listComments[T interface{ toComment() comment }](ctx context.Context, host, path string) ([]comment, error) {
-	items, err := ghAPIList[T](ctx, host, path)
-	if err != nil {
-		return nil, err
-	}
-	cs := make([]comment, len(items))
-	for i, it := range items {
-		cs[i] = it.toComment()
-	}
-	return cs, nil
-}
-
-// ghAPIList pages through a REST list endpoint and flattens the pages.
-func ghAPIList[T any](ctx context.Context, host, path string) ([]T, error) {
-	out, err := gh(ctx, "api", "--hostname", host, "--paginate", "--slurp", path)
-	if err != nil {
-		return nil, err
-	}
-	var pages [][]T
-	if err := json.Unmarshal(out, &pages); err != nil {
-		return nil, fmt.Errorf("unparseable gh output: %w", err)
-	}
-	return slices.Concat(pages...), nil
-}
-
-func gh(ctx context.Context, args ...string) ([]byte, error) {
-	var out, errBuf strings.Builder
-	cmd := exec.CommandContext(ctx, "gh", args...)
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		if msg := strings.TrimSpace(errBuf.String()); msg != "" {
-			return nil, fmt.Errorf("gh %s: %s", args[0], msg)
-		}
-		return nil, fmt.Errorf("gh %s: %w", args[0], err)
-	}
-	return []byte(out.String()), nil
 }
