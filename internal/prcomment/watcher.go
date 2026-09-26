@@ -29,7 +29,7 @@ type Watcher struct {
 	fetch     func(ctx context.Context, pr string) (Snapshot, error)
 	fetchSelf func(ctx context.Context) (string, error)
 	self      string
-	seen      map[[2]any]bool // nil until the baseline poll
+	seen      map[string]bool // keyed by Comment.API; nil until the baseline poll
 }
 
 func NewWatcher(pr string, interval time.Duration) *Watcher {
@@ -64,16 +64,15 @@ func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 func (w *Watcher) Tick(snap Snapshot) ([]monitor.Event, bool) {
 	baseline := w.seen == nil
 	if baseline {
-		w.seen = map[[2]any]bool{}
+		w.seen = map[string]bool{}
 	}
 
 	var fresh []Comment
 	for _, c := range snap.Comments {
-		key := [2]any{c.Kind, c.ID}
-		if w.seen[key] {
+		if w.seen[c.API] {
 			continue
 		}
-		w.seen[key] = true
+		w.seen[c.API] = true
 		if !baseline && w.notable(c) {
 			fresh = append(fresh, c)
 		}

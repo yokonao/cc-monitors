@@ -2,6 +2,7 @@ package prcomment
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"reflect"
 	"testing"
@@ -13,7 +14,7 @@ import (
 var t0 = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func comment(kind string, id int64, author string, min int) Comment {
-	return Comment{Kind: kind, ID: id, Author: author, Body: "hi", API: "https://api.test/" + kind, CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
+	return Comment{Kind: kind, ID: id, Author: author, Body: "hi", API: fmt.Sprintf("https://api.test/%s/%d", kind, id), CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
 }
 
 func newWatcher() *Watcher {
@@ -55,8 +56,8 @@ func TestNewCommentsEmittedInOrder(t *testing.T) {
 		t.Fatalf("want not done")
 	}
 	want := []monitor.Event{
-		NewCommentEvent{Kind: "comment", ID: 1, API: "https://api.test/comment"},
-		NewCommentEvent{Kind: "review_comment", ID: 1, API: "https://api.test/review_comment"},
+		NewCommentEvent{Kind: "comment", ID: 1, API: "https://api.test/comment/1"},
+		NewCommentEvent{Kind: "review_comment", ID: 1, API: "https://api.test/review_comment/1"},
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %+v", events)
