@@ -14,6 +14,9 @@ import (
 	"github.com/yokonao/cc-monitors/internal/prcomment"
 )
 
+// version is set at build time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -25,8 +28,9 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "cc-monitors",
-		Short: "Monitors for Claude Code's Monitor tool",
+		Use:     "cc-monitors",
+		Short:   "Monitors for Claude Code's Monitor tool",
+		Version: version,
 	}
 	root.AddCommand(newPRCICmd(), newPRCommentsCmd())
 	return root

@@ -39,18 +39,18 @@ func NewWatcher(pr string, interval time.Duration) *Watcher {
 }
 
 func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
-	max := w.MaxFetchFailures
-	if max <= 0 {
-		max = MaxFetchFailures
+	attempts := w.MaxFetchFailures
+	if attempts <= 0 {
+		attempts = MaxFetchFailures
 	}
 	if w.self == "" {
-		self, err := monitor.Retry(ctx, max, w.Interval, w.logger(), w.fetchSelf)
+		self, err := monitor.Retry(ctx, attempts, w.Interval, w.logger(), w.fetchSelf)
 		if err != nil {
 			return nil, false, err
 		}
 		w.self = self
 	}
-	snap, err := monitor.Retry(ctx, max, w.Interval, w.logger(), w.fetch)
+	snap, err := monitor.Retry(ctx, attempts, w.Interval, w.logger(), w.fetch)
 	if err != nil {
 		return nil, false, err
 	}

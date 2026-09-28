@@ -1,8 +1,12 @@
 version: "2"
-
-run:
-  timeout: 5m
-
+linters:
+  enable:
+    - unconvert
+    - unparam
+    - revive
+  exclusions:
+    presets:
+      - comments
 formatters:
   enable:
     - gofmt

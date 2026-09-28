@@ -13,8 +13,8 @@ import (
 
 var t0 = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-func newComment(kind string, id int64, author string, min int) comment {
-	return comment{Kind: kind, ID: id, Author: author, API: fmt.Sprintf("https://api.test/%s/%d", kind, id), CreatedAt: t0.Add(time.Duration(min) * time.Minute)}
+func newComment(kind, author string, minute int) comment {
+	return comment{Kind: kind, ID: 1, Author: author, API: fmt.Sprintf("https://api.test/%s/1", kind), CreatedAt: t0.Add(time.Duration(minute) * time.Minute)}
 }
 
 func newWatcher() *Watcher {
@@ -33,12 +33,12 @@ func eventNames(events []monitor.Event) []string {
 
 func TestBaselineIsSilent(t *testing.T) {
 	w := newWatcher()
-	events, done := w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", 1, "alice", 0)}})
+	events, done := w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", "alice", 0)}})
 	if done || len(events) != 0 {
 		t.Fatalf("events = %+v done = %v", events, done)
 	}
 
-	events, _ = w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", 1, "alice", 0)}})
+	events, _ = w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", "alice", 0)}})
 	if len(events) != 0 {
 		t.Fatalf("re-poll should emit nothing, got %+v", events)
 	}
@@ -49,8 +49,8 @@ func TestNewCommentsEmittedInOrder(t *testing.T) {
 	w.tick(snapshot{State: "OPEN"})
 
 	events, done := w.tick(snapshot{State: "OPEN", Comments: []comment{
-		newComment("review_comment", 1, "alice", 2),
-		newComment("comment", 1, "bob", 1),
+		newComment("review_comment", "alice", 2),
+		newComment("comment", "bob", 1),
 	}})
 	if done {
 		t.Fatalf("want not done")
@@ -68,7 +68,7 @@ func TestSelfSkipped(t *testing.T) {
 	w := newWatcher()
 	w.tick(snapshot{State: "OPEN"})
 
-	events, _ := w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", 1, "me", 0)}})
+	events, _ := w.tick(snapshot{State: "OPEN", Comments: []comment{newComment("comment", "me", 0)}})
 	if len(events) != 0 {
 		t.Fatalf("events = %+v", events)
 	}
@@ -95,7 +95,7 @@ func TestClosedEmitsCommentsThenExits(t *testing.T) {
 	w := newWatcher()
 	w.tick(snapshot{State: "OPEN"})
 
-	events, done := w.tick(snapshot{State: "MERGED", Comments: []comment{newComment("comment", 1, "alice", 0)}})
+	events, done := w.tick(snapshot{State: "MERGED", Comments: []comment{newComment("comment", "alice", 0)}})
 	if !done {
 		t.Fatalf("want done")
 	}
@@ -109,7 +109,7 @@ func TestClosedEmitsCommentsThenExits(t *testing.T) {
 
 func TestAlreadyClosedExitsImmediately(t *testing.T) {
 	w := newWatcher()
-	events, done := w.tick(snapshot{State: "CLOSED", Comments: []comment{newComment("comment", 1, "alice", 0)}})
+	events, done := w.tick(snapshot{State: "CLOSED", Comments: []comment{newComment("comment", "alice", 0)}})
 	if !done || !reflect.DeepEqual(eventNames(events), []string{"pr_closed"}) {
 		t.Fatalf("events = %+v done = %v", events, done)
 	}
@@ -124,7 +124,7 @@ func TestFetchResolvesSelfOnce(t *testing.T) {
 		return "me", nil
 	}
 	w.fetch = func(context.Context) (snapshot, error) {
-		return snapshot{State: "OPEN", Comments: []comment{newComment("comment", 1, "me", 0)}}, nil
+		return snapshot{State: "OPEN", Comments: []comment{newComment("comment", "me", 0)}}, nil
 	}
 
 	for range 2 {
