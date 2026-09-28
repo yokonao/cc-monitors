@@ -100,11 +100,11 @@ func (c *Checker) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 }
 
 func (c *Checker) fetchWithRetry(ctx context.Context) ([]check, error) {
-	max := c.MaxFetchFailures
-	if max <= 0 {
-		max = MaxFetchFailures
+	attempts := c.MaxFetchFailures
+	if attempts <= 0 {
+		attempts = MaxFetchFailures
 	}
-	return monitor.Retry(ctx, max, c.Interval, c.logger(), c.fetch)
+	return monitor.Retry(ctx, attempts, c.Interval, c.logger(), c.fetch)
 }
 
 // tick announces each check the moment it turns red, keyed by [name, run URL] so

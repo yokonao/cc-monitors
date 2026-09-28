@@ -5,17 +5,20 @@ before:
     - go mod tidy
 
 builds:
-  - id: cc-monitors
-    main: ./cmd/cc-monitors
+  - main: ./cmd/cc-monitors
     binary: cc-monitors
     env:
       - CGO_ENABLED=0
     goos:
-      - linux
       - darwin
+      - linux
     goarch:
       - amd64
       - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
 
 archives:
   - formats: [tar.gz]
