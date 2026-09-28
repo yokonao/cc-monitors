@@ -1,5 +1,7 @@
 # Releasing
 
+Add the release to `CHANGELOG.md` first; it has to be in the tagged tree.
+
 ```sh
 git tag -a vX.Y.Z -m vX.Y.Z
 git push origin vX.Y.Z

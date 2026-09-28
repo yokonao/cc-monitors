@@ -29,8 +29,7 @@ checksum:
   name_template: checksums.txt
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^test:"
-      - "^chore:"
+  disable: true
+
+release:
+  header: See [CHANGELOG.md](https://github.com/yokonao/cc-monitors/blob/{{ .Tag }}/CHANGELOG.md).
