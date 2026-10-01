@@ -29,11 +29,45 @@ func main() {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "cc-monitors",
-		Short:   "Monitors for Claude Code's Monitor tool",
+		Short:   "Monitors for Claude Code, run under the Monitor tool or relayed to sessions",
 		Version: version,
 	}
-	root.AddCommand(newPRCICmd(), newPRCommentsCmd())
+	root.AddCommand(newPRCICmd(), newPRCommentsCmd(), newRelayCmd())
 	return root
+}
+
+// monitors are the subcommands relay can run. Each call builds a fresh
+// command, so flags can be parsed for validation.
+var monitors = map[string]func() *cobra.Command{
+	"pr-ci":       newPRCICmd,
+	"pr-comments": newPRCommentsCmd,
+}
+
+// validateMonitor checks a monitor command line against the monitor's own
+// flag definitions and returns its positional arguments.
+func validateMonitor(name string, args []string) ([]string, error) {
+	newCmd, ok := monitors[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown monitor %q", name)
+	}
+	cmd := newCmd()
+	if err := cmd.ParseFlags(args); err != nil {
+		return nil, err
+	}
+	target := cmd.Flags().Args()
+	if err := cmd.ValidateArgs(target); err != nil {
+		return nil, err
+	}
+	return target, nil
+}
+
+func positiveInterval(interval *time.Duration) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if *interval <= 0 {
+			return fmt.Errorf("--interval must be positive")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	}
 }
 
 func newPRCICmd() *cobra.Command {
@@ -42,12 +76,8 @@ func newPRCICmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pr-ci <pr | url | branch>",
 		Short: "Watch a PR's CI checks, emitting check_failed / checks_passed events",
-		Args:  cobra.ExactArgs(1),
+		Args:  positiveInterval(&interval),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if interval <= 0 {
-				return fmt.Errorf("--interval must be positive")
-			}
-
 			engine := &monitor.Engine{
 				Prober:   prcheck.NewChecker(args[0], interval),
 				Interval: interval,
@@ -79,12 +109,8 @@ func newPRCommentsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pr-comments <pr | url | branch>",
 		Short: "Watch a PR for new comments and reviews until it is merged or closed",
-		Args:  cobra.ExactArgs(1),
+		Args:  positiveInterval(&interval),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if interval <= 0 {
-				return fmt.Errorf("--interval must be positive")
-			}
-
 			engine := &monitor.Engine{
 				Prober:       prcomment.NewWatcher(args[0], interval),
 				Interval:     interval,
