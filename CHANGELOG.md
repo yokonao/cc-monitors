@@ -5,6 +5,7 @@
 ### Added
 
 - `--version` prints the version.
+- `relay` (experimental) runs monitors in a long-lived process and relays their events to Claude Code sessions.
 
 ## v0.2.1 - 2026-09-26
 
