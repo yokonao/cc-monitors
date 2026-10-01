@@ -32,7 +32,7 @@ cc-monitors pr-ci <pr | url | branch> [--interval DURATION]
 Add one line to your `CLAUDE.md`:
 
 ```
-After a PR or fix push, watch CI: Monitor({ command: "cc-monitors pr-ci <pr>", description: "PR <pr> CI", persistent: true })
+After a PR or fix push, watch CI: Monitor({ command: "cc-monitors pr-ci <pr>", description: "PR <pr> CI", timeout_ms: 1800000 })
 ```
 
 ### Events
@@ -73,8 +73,13 @@ cc-monitors pr-comments <pr | url | branch> [--interval DURATION]
 ### Prompt
 
 ```
-After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors pr-comments <pr>", description: "PR <pr> comments", persistent: true })
+After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors pr-comments <pr>", description: "PR <pr> comments", timeout_ms: 1800000 }), re-arming it when it expires
 ```
+
+Since Claude Code 2.1.271, every `Monitor` watch expires after at most 30
+minutes and Claude is asked to re-arm it. Reviews can arrive hours later, so
+re-arming spends turns while nothing happens, and the watch stops with the
+session.
 
 ### Events
 
