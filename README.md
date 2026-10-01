@@ -12,7 +12,10 @@ the deadline and of whether the session is still running.
 
 ## Install
 
-See [docs/install.md](docs/install.md).
+Download a prebuilt binary from [GitHub Releases](https://github.com/yokonao/cc-monitors/releases).
+Every release ships with a build provenance attestation.
+
+See [docs/install.md](docs/install.md) for other install methods and how to verify a release.
 
 ## `pr-ci`
 
