@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0 - 2026-10-03
+
+### Added
+
+- `pr-merge` watches a PR until it is merged or closed.
+
 ## v0.3.0 - 2026-10-02
 
 ### Added
