@@ -106,6 +106,45 @@ Events carry no content: read the latest state with `gh api <api>`. `kind` is
 After 5 consecutive `gh` failures, the process exits non-zero with the
 reason on stderr.
 
+## `pr-merge`
+
+Watches a PR until it is merged or closed (exit 0), e.g. to wait for a PR
+your work depends on. A PR that is already merged or closed at startup is
+reported right away, so a late watch doesn't miss it.
+
+### Requirements
+
+- [`gh`](https://cli.github.com/) authenticated (`gh auth login`)
+
+### Usage
+
+```
+cc-monitors pr-merge <pr | url | branch> [--interval DURATION]
+```
+
+`--interval` takes a Go duration (e.g. `30s`, `1m`) and defaults to `1m`.
+
+### Prompt
+
+A merge can take hours, so relay it rather than run it under `Monitor`:
+
+```
+To wait for a PR to merge, relay it: run `cc-monitors relay add pr-merge <pr>`
+```
+
+### Events
+
+| event       | when                | data     | exit |
+| ----------- | ------------------- | -------- | ---- |
+| `pr_closed` | PR merged or closed | `merged` | 0    |
+
+```json
+{"data":{"merged":true},"event":"pr_closed"}
+```
+
+After 5 consecutive `gh` failures, the process exits non-zero with the
+reason on stderr.
+
 ## `relay` (experimental)
 
 Runs monitors in a long-lived process and relays their events to the Claude
