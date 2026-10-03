@@ -29,7 +29,7 @@ func newRootCmd() *cobra.Command {
 		Short:   "Monitors for Claude Code, run under the Monitor tool or relayed to sessions",
 		Version: version,
 	}
-	root.AddCommand(newPRCICmd(), newPRCommentsCmd(), newRelayCmd())
+	root.AddCommand(newPRCICmd(), newPRCommentsCmd(), newPRMergeCmd(), newRelayCmd())
 	return root
 }
 
@@ -38,6 +38,7 @@ func newRootCmd() *cobra.Command {
 var monitors = map[string]func() *cobra.Command{
 	"pr-ci":       newPRCICmd,
 	"pr-comments": newPRCommentsCmd,
+	"pr-merge":    newPRMergeCmd,
 }
 
 // validateMonitor checks a monitor command line against the monitor's own
