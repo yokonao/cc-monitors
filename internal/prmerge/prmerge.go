@@ -4,6 +4,7 @@ package prmerge
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -53,9 +54,12 @@ func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 
 // fetchState returns OPEN, CLOSED or MERGED.
 func fetchState(ctx context.Context, pr string) (string, error) {
-	out, err := gh.Output(ctx, "pr", "view", pr, "--json", "state", "--jq", ".state")
+	out, errOut, err := gh.Run(ctx, "pr", "view", pr, "--json", "state", "--jq", ".state")
 	if err != nil {
-		return "", err
+		if msg := strings.TrimSpace(string(errOut)); msg != "" {
+			return "", fmt.Errorf("gh pr view: %s", msg)
+		}
+		return "", fmt.Errorf("gh pr view: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
