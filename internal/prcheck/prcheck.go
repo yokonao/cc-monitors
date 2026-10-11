@@ -4,16 +4,17 @@
 package prcheck
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/yokonao/cc-monitors/internal/gh"
 	"github.com/yokonao/cc-monitors/internal/monitor"
 )
 
@@ -42,23 +43,19 @@ var noChecksReported = regexp.MustCompile(`(?i)no checks reported`)
 // pend but still prints JSON, so the signal is parseable output, not exit
 // status.
 func fetchChecks(ctx context.Context, pr string) ([]check, error) {
-	var out, errBuf strings.Builder
-	cmd := exec.CommandContext(ctx, "gh", "pr", "checks", pr, "--json", "name,bucket,link")
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-	runErr := cmd.Run()
+	out, errOut, runErr := gh.Run(ctx, "pr", "checks", pr, "--json", "name,bucket,link")
 
-	if strings.TrimSpace(out.String()) != "" {
+	if len(bytes.TrimSpace(out)) != 0 {
 		var checks []check
-		if err := json.Unmarshal([]byte(out.String()), &checks); err != nil {
+		if err := json.Unmarshal(out, &checks); err != nil {
 			return nil, fmt.Errorf("unparseable gh output: %w", err)
 		}
 		return checks, nil
 	}
-	if noChecksReported.MatchString(errBuf.String()) {
+	if noChecksReported.Match(errOut) {
 		return []check{}, nil
 	}
-	if msg := strings.TrimSpace(errBuf.String()); msg != "" {
+	if msg := strings.TrimSpace(string(errOut)); msg != "" {
 		return nil, fmt.Errorf("%s", msg)
 	}
 	// gh printed nothing at all (to either stream) — surface why it didn't run
