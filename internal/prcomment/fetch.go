@@ -31,7 +31,7 @@ type comment struct {
 // fetchSnapshot resolves pr (number, URL or branch) and reads its state plus
 // all three comment kinds.
 func fetchSnapshot(ctx context.Context, pr string) (snapshot, error) {
-	out, err := run(ctx, "pr", "view", pr, "--json", "state,url")
+	out, err := ghOutput(ctx, "pr", "view", pr, "--json", "state,url")
 	if err != nil {
 		return snapshot{}, err
 	}

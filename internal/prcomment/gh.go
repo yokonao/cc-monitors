@@ -11,7 +11,7 @@ import (
 )
 
 func fetchSelf(ctx context.Context) (string, error) {
-	out, err := run(ctx, "api", "user", "--jq", ".login")
+	out, err := ghOutput(ctx, "api", "user", "--jq", ".login")
 	if err != nil {
 		return "", err
 	}
@@ -20,7 +20,7 @@ func fetchSelf(ctx context.Context) (string, error) {
 
 // ghAPIList pages through a REST list endpoint and flattens the pages.
 func ghAPIList[T any](ctx context.Context, host, path string) ([]T, error) {
-	out, err := run(ctx, "api", "--hostname", host, "--paginate", "--slurp", path)
+	out, err := ghOutput(ctx, "api", "--hostname", host, "--paginate", "--slurp", path)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func ghAPIList[T any](ctx context.Context, host, path string) ([]T, error) {
 	return slices.Concat(pages...), nil
 }
 
-func run(ctx context.Context, args ...string) ([]byte, error) {
+func ghOutput(ctx context.Context, args ...string) ([]byte, error) {
 	out, errOut, err := gh.Run(ctx, args...)
 	if err != nil {
 		if msg := strings.TrimSpace(string(errOut)); msg != "" {
