@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/yokonao/cc-monitors/internal/gh"
 	"github.com/yokonao/cc-monitors/internal/monitor"
 )
 
@@ -54,17 +54,14 @@ func (w *Watcher) Fetch(ctx context.Context) ([]monitor.Event, bool, error) {
 
 // fetchState returns OPEN, CLOSED or MERGED.
 func fetchState(ctx context.Context, pr string) (string, error) {
-	var out, errBuf strings.Builder
-	cmd := exec.CommandContext(ctx, "gh", "pr", "view", pr, "--json", "state", "--jq", ".state")
-	cmd.Stdout = &out
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		if msg := strings.TrimSpace(errBuf.String()); msg != "" {
+	out, errOut, err := gh.Run(ctx, "pr", "view", pr, "--json", "state", "--jq", ".state")
+	if err != nil {
+		if msg := strings.TrimSpace(string(errOut)); msg != "" {
 			return "", fmt.Errorf("gh pr view: %s", msg)
 		}
 		return "", fmt.Errorf("gh pr view: %w", err)
 	}
-	return strings.TrimSpace(out.String()), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func (w *Watcher) logger() io.Writer {
