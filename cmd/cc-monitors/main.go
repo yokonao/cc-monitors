@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 
@@ -59,11 +60,21 @@ func validateMonitor(name string, args []string) ([]string, error) {
 	return target, nil
 }
 
-func positiveInterval(interval *time.Duration) cobra.PositionalArgs {
+// prURL accepts PR URLs only, since gh resolves a number or branch against
+// the working directory's repository.
+var prURL = regexp.MustCompile(`^https://[^/]+/[^/]+/[^/]+/pull/[0-9]+$`)
+
+func prArgs(interval *time.Duration) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if *interval <= 0 {
 			return fmt.Errorf("--interval must be positive")
 		}
-		return cobra.ExactArgs(1)(cmd, args)
+		if err := cobra.ExactArgs(1)(cmd, args); err != nil {
+			return err
+		}
+		if !prURL.MatchString(args[0]) {
+			return fmt.Errorf("%q is not a PR URL (https://github.com/<owner>/<repo>/pull/<number>)", args[0])
+		}
+		return nil
 	}
 }
