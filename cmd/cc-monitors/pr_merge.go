@@ -14,9 +14,9 @@ func newPRMergeCmd() *cobra.Command {
 	var interval time.Duration
 
 	cmd := &cobra.Command{
-		Use:   "pr-merge <pr | url | branch>",
+		Use:   "pr-merge <pr-url>",
 		Short: "Watch a PR until it is merged or closed, emitting pr_closed",
-		Args:  positiveInterval(&interval),
+		Args:  prArgs(&interval),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine := &monitor.Engine{
 				Prober:       prmerge.NewWatcher(args[0], interval),

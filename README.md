@@ -29,7 +29,7 @@ run keeps watching, since a fix push starts a new run.
 ### Usage
 
 ```
-cc-monitors pr-ci <pr | url | branch> [--interval DURATION]
+cc-monitors pr-ci <pr-url> [--interval DURATION]
 ```
 
 `--interval` takes a Go duration (e.g. `30s`, `1m`) and defaults to `30s`.
@@ -39,7 +39,7 @@ cc-monitors pr-ci <pr | url | branch> [--interval DURATION]
 Add one line to your `CLAUDE.md`:
 
 ```
-After a PR or fix push, watch CI: Monitor({ command: "cc-monitors pr-ci <pr>", description: "PR <pr> CI", timeout_ms: 1800000 })
+After a PR or fix push, watch CI: Monitor({ command: "cc-monitors pr-ci <pr-url>", description: "PR <number> CI", timeout_ms: 1800000 })
 ```
 
 ### Events
@@ -72,7 +72,7 @@ skipped, since their inline comments are reported individually.
 ### Usage
 
 ```
-cc-monitors pr-comments <pr | url | branch> [--interval DURATION]
+cc-monitors pr-comments <pr-url> [--interval DURATION]
 ```
 
 `--interval` takes a Go duration (e.g. `30s`, `1m`) and defaults to `30s`.
@@ -80,7 +80,7 @@ cc-monitors pr-comments <pr | url | branch> [--interval DURATION]
 ### Prompt
 
 ```
-After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors pr-comments <pr>", description: "PR <pr> comments", timeout_ms: 1800000 }), re-arming it when it expires
+After opening a PR, watch for review feedback: Monitor({ command: "cc-monitors pr-comments <pr-url>", description: "PR <number> comments", timeout_ms: 1800000 }), re-arming it when it expires
 ```
 
 Since Claude Code 2.1.271, every `Monitor` watch expires after at most 30
@@ -119,7 +119,7 @@ reported right away, so a late watch doesn't miss it.
 ### Usage
 
 ```
-cc-monitors pr-merge <pr | url | branch> [--interval DURATION]
+cc-monitors pr-merge <pr-url> [--interval DURATION]
 ```
 
 `--interval` takes a Go duration (e.g. `30s`, `1m`) and defaults to `1m`.
@@ -129,7 +129,7 @@ cc-monitors pr-merge <pr | url | branch> [--interval DURATION]
 A merge can take hours, so relay it rather than run it under `Monitor`:
 
 ```
-To wait for a PR to merge, relay it: run `cc-monitors relay add pr-merge <pr>`
+To wait for a PR to merge, relay it: run `cc-monitors relay add pr-merge <pr-url>`
 ```
 
 ### Events
@@ -190,7 +190,7 @@ The socket and state live in `$XDG_STATE_HOME/cc-monitors/`
 ### Prompt
 
 ```
-After opening a PR, relay review feedback: run `cc-monitors relay add pr-comments <pr>`
+After opening a PR, relay review feedback: run `cc-monitors relay add pr-comments <pr-url>`
 ```
 
 ### Notices

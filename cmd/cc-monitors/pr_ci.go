@@ -14,9 +14,9 @@ func newPRCICmd() *cobra.Command {
 	var interval time.Duration
 
 	cmd := &cobra.Command{
-		Use:   "pr-ci <pr | url | branch>",
+		Use:   "pr-ci <pr-url>",
 		Short: "Watch a PR's CI checks, emitting check_failed / checks_passed events",
-		Args:  positiveInterval(&interval),
+		Args:  prArgs(&interval),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine := &monitor.Engine{
 				Prober:   prcheck.NewChecker(args[0], interval),
