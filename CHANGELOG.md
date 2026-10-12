@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0 - 2026-10-12
+
+### Changed
+
+- **Breaking:** `pr-ci`, `pr-comments` and `pr-merge` accept only a PR URL (`https://github.com/<owner>/<repo>/pull/<number>`). A number or branch was resolved against the working directory's repository and could watch the wrong PR. Pass the URL instead, and re-add relays that used a number or branch.
+- Requires Go 1.27.2 or later.
+
 ## v0.4.0 - 2026-10-03
 
 ### Added
