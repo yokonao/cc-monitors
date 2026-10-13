@@ -151,6 +151,9 @@ func claude(ctx context.Context, dir, stdin string, args ...string) ([]byte, err
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
+	// Without it, a process claude spawned (an MCP server, say) that still
+	// holds the output pipes keeps Run blocked after ctx is done.
+	cmd.WaitDelay = 5 * time.Second
 	if err := cmd.Run(); err != nil {
 		if msg := strings.TrimSpace(errBuf.String()); msg != "" {
 			return nil, fmt.Errorf("claude %s: %s", args[0], msg)

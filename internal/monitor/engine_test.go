@@ -123,6 +123,24 @@ func TestEngineFetchTimeoutBoundsHangingProber(t *testing.T) {
 	}
 }
 
+func TestEngineWarnsWhilePollStalls(t *testing.T) {
+	var out, errOut bytes.Buffer
+	e := &Engine{
+		Prober:            hangingProber{},
+		FetchTimeout:      50 * time.Millisecond,
+		StallWarnInterval: 10 * time.Millisecond,
+		Out:               &out,
+		Err:               &errOut,
+	}
+
+	if code, _ := e.Run(context.Background()); code != 1 {
+		t.Fatalf("code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "poll still running after") {
+		t.Fatalf("err = %q, want a stall warning", errOut.String())
+	}
+}
+
 func TestEngineStopsPromptlyWhenContextCanceled(t *testing.T) {
 	prober := &scriptedProber{responses: []fetchResult{{done: false}}}
 	var out, errOut bytes.Buffer
