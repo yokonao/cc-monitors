@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.1 - 2026-10-13
+
+### Added
+
+- Monitors report `poll still running after <duration>` on stderr every minute while a poll has not returned.
+
+### Fixed
+
+- A monitor no longer hangs past its fetch timeout when a process spawned by `gh` keeps its output open. The same applies to `relay`'s calls to `claude`.
+
 ## v0.5.0 - 2026-10-12
 
 ### Changed
