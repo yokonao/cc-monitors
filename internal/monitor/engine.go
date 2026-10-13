@@ -5,8 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
+
+// DefaultStallWarnInterval is how often Engine reports a poll that has not
+// returned yet when StallWarnInterval is zero.
+const DefaultStallWarnInterval = time.Minute
 
 // Event is emitted as one line of JSON: {"event": EventName(), "data": <the
 // Event itself>}. Each monitor declares its events as structs in its event.go.
@@ -32,6 +37,10 @@ type Engine struct {
 	// it. It should be set generously — it's not meant to fire in normal
 	// operation, including a Prober's own internal retries.
 	FetchTimeout time.Duration
+
+	// StallWarnInterval is how often a poll that has not returned yet is
+	// reported on Err; zero means DefaultStallWarnInterval.
+	StallWarnInterval time.Duration
 
 	Out io.Writer
 	Err io.Writer
@@ -62,13 +71,43 @@ func (e *Engine) Run(ctx context.Context) (int, error) {
 }
 
 func (e *Engine) fetch(ctx context.Context) ([]Event, bool, error) {
-	if e.FetchTimeout <= 0 {
-		return e.Prober.Fetch(ctx)
+	if e.FetchTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, e.FetchTimeout)
+		defer cancel()
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, e.FetchTimeout)
-	defer cancel()
+	stop := e.warnWhileStalled()
+	defer stop()
 	return e.Prober.Fetch(ctx)
+}
+
+// warnWhileStalled reports on Err every StallWarnInterval until stop is
+// called, so a hung poll leaves a trace instead of silence.
+func (e *Engine) warnWhileStalled() (stop func()) {
+	every := e.StallWarnInterval
+	if every <= 0 {
+		every = DefaultStallWarnInterval
+	}
+	start := time.Now()
+	ticker := time.NewTicker(every)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				_, _ = fmt.Fprintf(e.Err, "poll still running after %v\n", time.Since(start).Round(time.Second))
+			}
+		}
+	})
+	return func() {
+		ticker.Stop()
+		close(done)
+		wg.Wait()
+	}
 }
 
 func (e *Engine) emit(ev Event) {
