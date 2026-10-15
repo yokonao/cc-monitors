@@ -26,7 +26,7 @@ const (
 
 // Sessions finds and wakes Claude Code sessions.
 type Sessions interface {
-	// Resolve looks up a session by its session ID or short id.
+	// Resolve looks up a session by its session ID, short id or name.
 	Resolve(ctx context.Context, session string) (Session, error)
 	Deliver(ctx context.Context, s Session, text string) error
 }

@@ -11,12 +11,30 @@ func TestFindSession(t *testing.T) {
 		{SessionID: "aaaa1111-x", ID: "aaaa1111"},
 		{SessionID: "bbbb2222-x", ID: "dup"},
 		{SessionID: "cccc3333-x", ID: "dup"},
+		{SessionID: "dddd4444-x", ID: "dddd4444", Name: "fix bug"},
+		{SessionID: "eeee5555-x", ID: "eeee5555", Name: "fix bug in relay"},
+		{SessionID: "ffff6666-x", ID: "ffff6666", Name: "Review relay"},
+		{SessionID: "gggg7777-x", ID: "gggg7777", Name: "aaaa1111"},
 	}
 
 	for _, s := range []string{"aaaa1111", "aaaa1111-x"} {
 		if a, err := findSession(agents, s); err != nil || a.SessionID != "aaaa1111-x" {
 			t.Fatalf("findSession(%q) = %+v, %v", s, a, err)
 		}
+	}
+	for s, want := range map[string]string{
+		"fix bug":  "dddd4444-x",
+		"in relay": "eeee5555-x",
+		"review":   "ffff6666-x",
+		"aaaa1111": "aaaa1111-x",
+		"gggg7777": "gggg7777-x",
+	} {
+		if a, err := findSession(agents, s); err != nil || a.SessionID != want {
+			t.Errorf("findSession(%q) = %+v, %v, want %s", s, a, err, want)
+		}
+	}
+	if _, err := findSession(agents, "relay"); err == nil {
+		t.Fatal("ambiguous partial name matched")
 	}
 	if _, err := findSession(agents, "dup"); err == nil {
 		t.Fatal("ambiguous short id matched")
