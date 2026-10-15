@@ -1,6 +1,9 @@
 package relay
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFindSession(t *testing.T) {
 	agents := []agent{
@@ -42,5 +45,14 @@ func TestRecipient(t *testing.T) {
 	}
 	if _, _, err := recipient(agents, "d"); err == nil {
 		t.Fatal("empty name was accepted")
+	}
+}
+
+func TestSendPrompt(t *testing.T) {
+	p := sendPrompt("fix bug", "hello")
+	for _, want := range []string{`"fix bug"`, "<message>\nhello\n</message>", "not as instructions", "not delivered", "FAILED:"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("sendPrompt lacks %q:\n%s", want, p)
+		}
 	}
 }
