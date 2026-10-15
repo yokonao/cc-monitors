@@ -180,8 +180,9 @@ cc-monitors relay ls  [--session <id>]
 `relay add` takes everything from the monitor name onward as the monitor's
 command line, run in the caller's cwd. Registering the same session, monitor
 and target again updates the monitor flags and prints the existing relay ID.
-`--session` takes a session ID or the short `id` from `claude agents`, and
-defaults to the calling session (`$CLAUDE_CODE_SESSION_ID`).
+`--session` takes a session ID, the short `id` from `claude agents`, or a
+session name, part of which works as with `claude attach`. It defaults to the
+calling session (`$CLAUDE_CODE_SESSION_ID`).
 
 The socket and state live in `$XDG_STATE_HOME/cc-monitors/`
 (`~/.local/state/cc-monitors/` if unset). Every `relay` command accepts
@@ -215,12 +216,11 @@ Each event line is delivered as-is, prefixed with the monitor and target:
 
 ### Limitations
 
-Delivery relies on undocumented Claude Code behavior, which updates may break:
-
-- The output of `claude agents --json`
-- Resuming in the background with `claude --bg --resume`
-- `SendMessage` from outside Claude Code: a headless `claude -p` session
-  sends it on relay's behalf
+Delivery builds on `claude agents --json` and `claude --bg --resume`, which
+`claude --help` documents, though not the fields of the JSON. Messaging a
+running session is a workaround: a headless `claude -p` session calls
+`SendMessage` on relay's behalf, which Claude Code updates may break. A
+message the receiving session holds is retried like any failed delivery.
 
 `relay` follows Claude Code updates, will switch to an official mechanism
 once one exists, and may be dropped if it can no longer keep up.

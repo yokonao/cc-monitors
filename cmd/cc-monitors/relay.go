@@ -96,7 +96,7 @@ func newRelayAddCmd(socket *string) *cobra.Command {
 		},
 	}
 	cmd.Flags().SetInterspersed(false)
-	cmd.Flags().StringVar(&session, "session", "", "destination session ID or short id (default $CLAUDE_CODE_SESSION_ID)")
+	cmd.Flags().StringVar(&session, "session", "", "destination session ID, short id or name (default $CLAUDE_CODE_SESSION_ID)")
 	return cmd
 }
 
