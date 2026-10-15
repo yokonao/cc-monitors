@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.0 - 2026-10-15
+
+### Added
+
+- `relay add --session` accepts a session name, or a unique part of one, as `claude attach` does.
+
+### Fixed
+
+- `relay` retries a message the receiving session held or did not deliver (Claude Code 2.1.271 and later) instead of counting it as delivered.
+
 ## v0.5.1 - 2026-10-13
 
 ### Added
