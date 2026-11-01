@@ -250,7 +250,9 @@ func TestSocketRoundTrip(t *testing.T) {
 	go func() { done <- s.Serve(ctx, ln) }()
 	t.Cleanup(func() {
 		cancel()
-		<-done
+		if err := <-done; err != nil {
+			t.Error(err)
+		}
 	})
 
 	if _, err := Listen(socket); err == nil {
