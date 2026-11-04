@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1 - 2026-11-04
+
+### Added
+
+- `relay serve` logs what `claude` prints on stderr even when the call succeeds, such as the warning before a claude.ai sign-in expires (Claude Code 2.1.318 and later). Each distinct line is logged once per process.
+
 ## v0.6.0 - 2026-10-15
 
 ### Added
