@@ -1,6 +1,11 @@
 package relay
 
 import (
+	"bytes"
+	"context"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -72,5 +77,26 @@ func TestSendPrompt(t *testing.T) {
 		if !strings.Contains(p, want) {
 			t.Errorf("sendPrompt lacks %q:\n%s", want, p)
 		}
+	}
+}
+
+func TestClaudeLogsStderrOnce(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\necho SENT\necho 'Warning: sign-in expires soon' >&2\necho 'Warning: MCP blocked' >&2\n"
+	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var buf bytes.Buffer
+	c := Claude{Log: log.New(&buf, "", 0)}
+	for range 2 {
+		out, err := c.claude(context.Background(), "", "", "-p")
+		if err != nil || string(out) != "SENT\n" {
+			t.Fatalf("claude = %q, %v", out, err)
+		}
+	}
+	if got, want := buf.String(), "claude -p: Warning: sign-in expires soon\nclaude -p: Warning: MCP blocked\n"; got != want {
+		t.Errorf("log = %q, want %q", got, want)
 	}
 }

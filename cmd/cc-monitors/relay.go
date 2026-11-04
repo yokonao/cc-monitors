@@ -52,10 +52,12 @@ func newRelayServeCmd(socket *string) *cobra.Command {
 			if err := os.MkdirAll(dir, 0o700); err != nil {
 				return err
 			}
-			s, err := relay.NewServer(filepath.Join(dir, "relays.json"), relay.Claude{Dir: dir}, validateMonitor)
+			c := &relay.Claude{Dir: dir}
+			s, err := relay.NewServer(filepath.Join(dir, "relays.json"), c, validateMonitor)
 			if err != nil {
 				return err
 			}
+			c.Log = s.Log
 			ln, err := relay.Listen(*socket)
 			if err != nil {
 				return err
