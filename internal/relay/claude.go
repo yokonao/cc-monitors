@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,7 +19,11 @@ const deliveryTimeout = 5 * time.Minute
 type Claude struct {
 	// Dir is the cwd of the headless sender, which names it to the receiver.
 	Dir string
+	// Log receives each distinct stderr line of successful calls once per process.
+	Log *log.Logger
 }
+
+var loggedStderr sync.Map
 
 // agent mirrors one entry of `claude agents --json`.
 type agent struct {
@@ -27,8 +33,8 @@ type agent struct {
 	Cwd       string `json:"cwd"`
 }
 
-func (Claude) Resolve(ctx context.Context, session string) (Session, error) {
-	agents, err := listAgents(ctx, true)
+func (c Claude) Resolve(ctx context.Context, session string) (Session, error) {
+	agents, err := c.listAgents(ctx, true)
 	if err != nil {
 		return Session{}, err
 	}
@@ -45,7 +51,7 @@ func (c Claude) Deliver(ctx context.Context, s Session, text string) error {
 	ctx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 	defer cancel()
 
-	agents, err := listAgents(ctx, false)
+	agents, err := c.listAgents(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -54,12 +60,12 @@ func (c Claude) Deliver(ctx context.Context, s Session, text string) error {
 		return err
 	}
 	if !running {
-		_, err := claude(ctx, s.Cwd, "", "--bg", "--resume", s.ID, text)
+		_, err := c.claude(ctx, s.Cwd, "", "--bg", "--resume", s.ID, text)
 		return err
 	}
 
 	// --allowedTools swallows the arguments after it, so the prompt goes on stdin.
-	out, err := claude(ctx, c.Dir, sendPrompt(name, text),
+	out, err := c.claude(ctx, c.Dir, sendPrompt(name, text),
 		"-p", "--model", "haiku", "--allowedTools", "ListAgents SendMessage ToolSearch")
 	if err != nil {
 		return err
@@ -133,12 +139,12 @@ func recipient(agents []agent, sessionID string) (string, bool, error) {
 	return name, true, nil
 }
 
-func listAgents(ctx context.Context, all bool) ([]agent, error) {
+func (c Claude) listAgents(ctx context.Context, all bool) ([]agent, error) {
 	args := []string{"agents", "--json"}
 	if all {
 		args = append(args, "--all")
 	}
-	out, err := claude(ctx, "", "", args...)
+	out, err := c.claude(ctx, "", "", args...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +155,7 @@ func listAgents(ctx context.Context, all bool) ([]agent, error) {
 	return agents, nil
 }
 
-func claude(ctx context.Context, dir, stdin string, args ...string) ([]byte, error) {
+func (c Claude) claude(ctx context.Context, dir, stdin string, args ...string) ([]byte, error) {
 	var out, errBuf strings.Builder
 	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Dir = dir
@@ -164,6 +170,14 @@ func claude(ctx context.Context, dir, stdin string, args ...string) ([]byte, err
 			return nil, fmt.Errorf("claude %s: %s", args[0], msg)
 		}
 		return nil, fmt.Errorf("claude %s: %w", args[0], err)
+	}
+	if c.Log != nil {
+		for line := range strings.Lines(errBuf.String()) {
+			line = strings.TrimSpace(line)
+			if _, seen := loggedStderr.LoadOrStore(line, true); line != "" && !seen {
+				c.Log.Printf("claude %s: %s", args[0], line)
+			}
+		}
 	}
 	return []byte(out.String()), nil
 }
