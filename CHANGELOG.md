@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2 - 2026-11-07
+
+### Changed
+
+- When `claude` fails without printing to stderr, `relay`'s error quotes the last 300 bytes of its stdout after the exit status. Since Claude Code 2.1.319, `claude -p` in auto mode exits 1 with the reason on stdout when it refused an action for lack of a safety check.
+
 ## v0.6.1 - 2026-11-04
 
 ### Added
