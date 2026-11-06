@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestFindSession(t *testing.T) {
@@ -81,12 +82,7 @@ func TestSendPrompt(t *testing.T) {
 }
 
 func TestClaudeLogsStderrOnce(t *testing.T) {
-	dir := t.TempDir()
-	script := "#!/bin/sh\necho SENT\necho 'Warning: sign-in expires soon' >&2\necho 'Warning: MCP blocked' >&2\n"
-	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	fakeClaude(t, "echo SENT\necho 'Warning: sign-in expires soon' >&2\necho 'Warning: MCP blocked' >&2\n")
 
 	var buf bytes.Buffer
 	c := Claude{Log: log.New(&buf, "", 0)}
@@ -98,5 +94,55 @@ func TestClaudeLogsStderrOnce(t *testing.T) {
 	}
 	if got, want := buf.String(), "claude -p: Warning: sign-in expires soon\nclaude -p: Warning: MCP blocked\n"; got != want {
 		t.Errorf("log = %q, want %q", got, want)
+	}
+}
+
+func fakeClaude(t *testing.T, script string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestClaudeErrorPrefersStderr(t *testing.T) {
+	fakeClaude(t, "echo 'some output'\necho 'bad flag' >&2\nexit 2\n")
+	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	if err == nil || err.Error() != "claude -p: bad flag" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClaudeErrorQuotesStdout(t *testing.T) {
+	fakeClaude(t, "echo\necho 'Refused: no safety check for Bash'\necho\nexit 1\n")
+	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	if err == nil || err.Error() != "claude -p: exit status 1: Refused: no safety check for Bash" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClaudeErrorKeepsStdoutTail(t *testing.T) {
+	// "あ" is 3 bytes, so the cut falls inside a rune and has to move forward.
+	stdout := "HEAD" + strings.Repeat("あ", 200) + "END!"
+	fakeClaude(t, "printf '"+stdout+"'\nexit 1\n")
+	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	if err == nil {
+		t.Fatal("no error")
+	}
+	msg := strings.TrimPrefix(err.Error(), "claude -p: exit status 1: ")
+	if !strings.HasPrefix(msg, "...") || !strings.HasSuffix(msg, "ああEND!") || strings.Contains(msg, "HEAD") {
+		t.Errorf("err = %q, want the tail of stdout", err)
+	}
+	if body := strings.TrimPrefix(msg, "..."); len(body) != maxStdoutInError-2 || !utf8.ValidString(body) {
+		t.Errorf("tail = %q, want %d bytes of valid UTF-8", body, maxStdoutInError-2)
+	}
+}
+
+func TestClaudeErrorWithoutOutput(t *testing.T) {
+	fakeClaude(t, "exit 3\n")
+	_, err := Claude{}.claude(context.Background(), "", "", "agents")
+	if err == nil || err.Error() != "claude agents: exit status 3" {
+		t.Fatalf("err = %v", err)
 	}
 }

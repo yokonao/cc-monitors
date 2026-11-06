@@ -10,9 +10,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const deliveryTimeout = 5 * time.Minute
+
+// maxStdoutInError caps the stdout a failed call quotes in its error.
+const maxStdoutInError = 300
 
 // Claude implements Sessions with the claude CLI. Messaging a running session
 // relies on a headless session calling SendMessage on relay's behalf.
@@ -169,6 +173,11 @@ func (c Claude) claude(ctx context.Context, dir, stdin string, args ...string) (
 		if msg := strings.TrimSpace(errBuf.String()); msg != "" {
 			return nil, fmt.Errorf("claude %s: %s", args[0], msg)
 		}
+		// claude -p in auto mode exits 1 with the reason on stdout when it
+		// refused an action, as Claude Code 2.1.319 and later do.
+		if msg := strings.TrimSpace(out.String()); msg != "" {
+			return nil, fmt.Errorf("claude %s: %w: %s", args[0], err, tail(msg, maxStdoutInError))
+		}
 		return nil, fmt.Errorf("claude %s: %w", args[0], err)
 	}
 	if c.Log != nil {
@@ -180,4 +189,17 @@ func (c Claude) claude(ctx context.Context, dir, stdin string, args ...string) (
 		}
 	}
 	return []byte(out.String()), nil
+}
+
+// tail returns the last n bytes of s, cut at a rune boundary and prefixed with
+// "..." if anything was dropped. A final reply puts the reason last.
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	i := len(s) - n
+	for i < len(s) && !utf8.RuneStart(s[i]) {
+		i++
+	}
+	return "..." + s[i:]
 }
