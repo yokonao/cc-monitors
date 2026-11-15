@@ -30,13 +30,14 @@ func newRootCmd() *cobra.Command {
 		Short:   "Monitors for Claude Code, run under the Monitor tool or relayed to sessions",
 		Version: version,
 	}
-	root.AddCommand(newPRCICmd(), newPRCommentsCmd(), newPRMergeCmd(), newRelayCmd())
+	root.AddCommand(newExecCmd(), newPRCICmd(), newPRCommentsCmd(), newPRMergeCmd(), newRelayCmd())
 	return root
 }
 
 // monitors are the subcommands relay can run. Each call builds a fresh
 // command, so flags can be parsed for validation.
 var monitors = map[string]func() *cobra.Command{
+	"exec":        newExecCmd,
 	"pr-ci":       newPRCICmd,
 	"pr-comments": newPRCommentsCmd,
 	"pr-merge":    newPRMergeCmd,

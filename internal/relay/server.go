@@ -294,9 +294,13 @@ func (s *Server) work(ctx context.Context, e *entry, gap bool) {
 		notify(gapNotice)
 	}
 	failures := 0
+	var last string
 	for {
 		started := time.Now()
-		err := s.watch(ctx, r, notify)
+		err := s.watch(ctx, r, last, func(line string) {
+			last = line
+			notify(line)
+		})
 		if ctx.Err() != nil {
 			return
 		}
@@ -338,9 +342,12 @@ func (s *Server) backoff(failures int) time.Duration {
 }
 
 // watch runs the monitor once, passing each stdout line to notify and logging
-// stderr.
-func (s *Server) watch(ctx context.Context, r Relay, notify func(string)) error {
+// stderr. last is the last line forwarded by an earlier run, if any.
+func (s *Server) watch(ctx context.Context, r Relay, last string, notify func(string)) error {
 	cmd := s.Command(ctx, r)
+	if last != "" {
+		cmd.Env = append(cmd.Environ(), LastEventEnv+"="+last)
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

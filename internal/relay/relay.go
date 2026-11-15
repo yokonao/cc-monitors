@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// LastEventEnv names the variable a restarted monitor gets with the last event
+// relay forwarded from it, so it can resume from there.
+const LastEventEnv = "CC_MONITORS_LAST_EVENT"
+
 // Relay is one registration: run Monitor with Args in Cwd, and deliver each
 // event to Session.
 type Relay struct {

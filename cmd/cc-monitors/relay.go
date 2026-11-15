@@ -52,8 +52,19 @@ func newRelayServeCmd(socket *string) *cobra.Command {
 			if err := os.MkdirAll(dir, 0o700); err != nil {
 				return err
 			}
+			allowPath, err := execAllowPath()
+			if err != nil {
+				return err
+			}
+			validate := func(monitor string, args []string) ([]string, error) {
+				target, err := validateMonitor(monitor, args)
+				if err == nil && monitor == "exec" {
+					err = checkExecAllowed(allowPath, target[0])
+				}
+				return target, err
+			}
 			c := &relay.Claude{Dir: dir}
-			s, err := relay.NewServer(filepath.Join(dir, "relays.json"), c, validateMonitor)
+			s, err := relay.NewServer(filepath.Join(dir, "relays.json"), c, validate)
 			if err != nil {
 				return err
 			}
