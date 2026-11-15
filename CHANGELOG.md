@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `relay` no longer resumes a stopped session with `claude --bg --resume`. An event for a session missing from `claude agents` is retried and then dropped like any failed delivery, because the listing can miss a running session and resuming it forked the session.
+
 ## v0.6.2 - 2026-11-07
 
 ### Changed

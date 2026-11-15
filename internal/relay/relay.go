@@ -28,7 +28,6 @@ type Relay struct {
 type Session struct {
 	ID      string `json:"id"`
 	ShortID string `json:"short_id"`
-	Cwd     string `json:"cwd"` // where to resume it
 }
 
 func (r Relay) CommandLine() string {

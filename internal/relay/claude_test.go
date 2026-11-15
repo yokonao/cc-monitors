@@ -58,16 +58,16 @@ func TestRecipient(t *testing.T) {
 		{SessionID: "d"},
 	}
 
-	if name, running, err := recipient(agents, "a"); name != "fix bug" || !running || err != nil {
-		t.Fatalf("recipient(a) = %q, %v, %v", name, running, err)
+	if name, err := recipient(agents, "a"); name != "fix bug" || err != nil {
+		t.Fatalf("recipient(a) = %q, %v", name, err)
 	}
-	if _, running, err := recipient(agents, "z"); running || err != nil {
-		t.Fatalf("recipient(z) = %v, %v, want stopped", running, err)
+	if _, err := recipient(agents, "z"); err == nil {
+		t.Fatal("stopped session was accepted")
 	}
-	if _, _, err := recipient(agents, "b"); err == nil {
+	if _, err := recipient(agents, "b"); err == nil {
 		t.Fatal("shared name was accepted")
 	}
-	if _, _, err := recipient(agents, "d"); err == nil {
+	if _, err := recipient(agents, "d"); err == nil {
 		t.Fatal("empty name was accepted")
 	}
 }
