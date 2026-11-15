@@ -149,8 +149,10 @@ reason on stderr.
 
 Runs monitors in a long-lived process and relays their events to the Claude
 Code session that registered them. A session can end its turn right after
-registering; when an event arrives, the session is woken by `SendMessage` if
-it is running, or resumed in the background if it is stopped.
+registering; when an event arrives, the session is woken by `SendMessage`.
+Events for a session that is not running are retried and then dropped like
+any failed delivery. Remove a session's relays before stopping it, and have it
+check for missed events when it is resumed.
 
 ### Requirements
 
@@ -216,8 +218,7 @@ Each event line is delivered as-is, prefixed with the monitor and target:
 
 ### Limitations
 
-Delivery builds on `claude agents --json` and `claude --bg --resume`, which
-`claude --help` documents, though not the fields of the JSON. Messaging a
+Delivery builds on `claude agents --json`, which `claude --help` documents, though not the fields of the JSON. Messaging a
 running session is a workaround: a headless `claude -p` session calls
 `SendMessage` on relay's behalf, which Claude Code updates may break. A
 message the receiving session holds is retried like any failed delivery.

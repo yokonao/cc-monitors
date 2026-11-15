@@ -46,11 +46,12 @@ func (c Claude) Resolve(ctx context.Context, session string) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	return Session{ID: a.SessionID, ShortID: a.ID, Cwd: a.Cwd}, nil
+	return Session{ID: a.SessionID, ShortID: a.ID}, nil
 }
 
-// Deliver sends text with SendMessage if the session is running, or resumes it
-// in the background with text as the prompt otherwise.
+// Deliver sends text with SendMessage. A session missing from `claude agents`
+// is an error rather than resumed: the listing can miss a running session, and
+// resuming one forks it.
 func (c Claude) Deliver(ctx context.Context, s Session, text string) error {
 	ctx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 	defer cancel()
@@ -59,12 +60,8 @@ func (c Claude) Deliver(ctx context.Context, s Session, text string) error {
 	if err != nil {
 		return err
 	}
-	name, running, err := recipient(agents, s.ID)
+	name, err := recipient(agents, s.ID)
 	if err != nil {
-		return err
-	}
-	if !running {
-		_, err := c.claude(ctx, s.Cwd, "", "--bg", "--resume", s.ID, text)
 		return err
 	}
 
@@ -117,10 +114,9 @@ func findSession(agents []agent, session string) (agent, error) {
 	return agent{}, fmt.Errorf("session %q not found in claude agents", session)
 }
 
-// recipient returns the name SendMessage addresses sessionID by, and whether
-// it is running. SendMessage cannot tell sessions sharing a name apart, so
-// that is an error.
-func recipient(agents []agent, sessionID string) (string, bool, error) {
+// recipient returns the name SendMessage addresses sessionID by. SendMessage
+// cannot tell sessions sharing a name apart, so that is an error.
+func recipient(agents []agent, sessionID string) (string, error) {
 	i := -1
 	for j, a := range agents {
 		if a.SessionID == sessionID {
@@ -129,18 +125,18 @@ func recipient(agents []agent, sessionID string) (string, bool, error) {
 		}
 	}
 	if i < 0 {
-		return "", false, nil
+		return "", fmt.Errorf("session %s is not running", sessionID)
 	}
 	name := agents[i].Name
 	if name == "" {
-		return "", true, fmt.Errorf("session %s has no name to message", sessionID)
+		return "", fmt.Errorf("session %s has no name to message", sessionID)
 	}
 	for _, a := range agents {
 		if a.SessionID != sessionID && a.Name == name {
-			return "", true, fmt.Errorf("session %s shares its name %q with another session", sessionID, name)
+			return "", fmt.Errorf("session %s shares its name %q with another session", sessionID, name)
 		}
 	}
-	return name, true, nil
+	return name, nil
 }
 
 func (c Claude) listAgents(ctx context.Context, all bool) ([]agent, error) {
