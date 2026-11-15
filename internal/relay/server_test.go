@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -268,5 +269,19 @@ func TestSocketRoundTrip(t *testing.T) {
 	}
 	if _, err := Call(socket, Request{Op: "rm", ID: "nope"}); err == nil {
 		t.Fatal("rm of unknown relay succeeded")
+	}
+}
+
+func TestRestartedMonitorGetsLastEvent(t *testing.T) {
+	f := &fakeSessions{delivered: make(chan string, 10)}
+	s := newTestServer(t, f)
+	startServer(t, s)
+
+	add(t, s, `if [ -n "$`+LastEventEnv+`" ]; then echo "last=$`+LastEventEnv+`"; exit 0; fi; echo '{"event":"x"}'; exit 1`)
+
+	got := receive(t, f, 4)
+	if !strings.HasSuffix(got[0], `: {"event":"x"}`) || !strings.HasSuffix(got[1], gapNotice) ||
+		!strings.HasSuffix(got[2], `: last={"event":"x"}`) || !strings.HasSuffix(got[3], finishNotice) {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- `exec` runs a command you provide as a monitor and forwards the `{"event": ..., "data": {...}}` lines it prints. Under `relay`, only commands listed in `$XDG_CONFIG_HOME/cc-monitors/exec.allow` can be added.
+- `relay` sets `CC_MONITORS_LAST_EVENT` to the last event it forwarded when it restarts a failed monitor.
+
 ### Changed
 
 - `relay` no longer resumes a stopped session with `claude --bg --resume`. An event for a session missing from `claude agents` is retried and then dropped like any failed delivery, because the listing can miss a running session and resuming it forked the session.

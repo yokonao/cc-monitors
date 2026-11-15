@@ -8,7 +8,8 @@ instead, since `Monitor` only wakes Claude on stdout lines.
 Run a monitor under the `Monitor` tool for events that settle within its
 deadline, such as CI. For events of unknown timing, such as review comments,
 use [`relay`](#relay-experimental) to deliver them to a session regardless of
-the deadline and of whether the session is still running.
+the deadline. To watch something cc-monitors does not cover, run your own
+watcher with [`exec`](#exec).
 
 ## Install
 
@@ -144,6 +145,41 @@ To wait for a PR to merge, relay it: run `cc-monitors relay add pr-merge <pr-url
 
 After 5 consecutive `gh` failures, the process exits non-zero with the
 reason on stderr.
+
+## `exec`
+
+Runs a command you provide as a monitor. The command owns polling, diffing
+and retries; `exec` enforces the event format and maps the exit status.
+
+### Usage
+
+```
+cc-monitors exec [--] <command> [args...]
+```
+
+- Each stdout line that is a JSON object with a non-empty string `event` and
+  an object `data` is forwarded. Other lines are reported on stderr and
+  dropped, so a stray print cannot wake the session
+- The command's stderr is passed through
+- The command's exit status becomes the monitor's: 0 is a finished watch,
+  non-zero a failure
+
+### Relaying
+
+```
+cc-monitors relay add exec -- /abs/path/to/watcher [args...]
+```
+
+`relay serve` usually runs outside the Claude Code sandbox, so it only runs
+commands listed in `$XDG_CONFIG_HOME/cc-monitors/exec.allow`
+(`~/.config/cc-monitors/exec.allow` if unset): one absolute path per line,
+with blank lines and `#` comments ignored. `relay add exec` rejects any other
+command. The list is read on each `relay add`; removing a path does not stop
+relays already added, so `relay rm` them.
+
+When `relay` restarts a failed watcher, it sets `CC_MONITORS_LAST_EVENT` to
+the last event line it forwarded from it, so the watcher can resume from
+there.
 
 ## `relay` (experimental)
 
