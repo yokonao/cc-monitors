@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `relay` delivers events through a plugin it writes to a temporary directory for each delivery, whose slash command sends the message by session ID without a model call, instead of having a headless Haiku session call `SendMessage`. Delivery takes well under a second, no longer runs `claude agents`, and works while another session has the same name.
+
 ## v0.7.0 - 2026-11-15
 
 ### Added

@@ -185,7 +185,7 @@ there.
 
 Runs monitors in a long-lived process and relays their events to the Claude
 Code session that registered them. A session can end its turn right after
-registering; when an event arrives, the session is woken by `SendMessage`.
+registering; when an event arrives, the session is woken by a message.
 Events for a session that is not running are retried and then dropped like
 any failed delivery. Remove a session's relays before stopping it, and have it
 check for missed events when it is resumed.
@@ -254,16 +254,14 @@ Each event line is delivered as-is, prefixed with the monitor and target:
 
 ### Limitations
 
-Delivery builds on `claude agents --json`, which `claude --help` documents, though not the fields of the JSON. Messaging a
-running session is a workaround: a headless `claude -p` session calls
-`SendMessage` on relay's behalf, which Claude Code updates may break. A
-message the receiving session holds is retried like any failed delivery.
+`relay add` builds on `claude agents --json`, which `claude --help` documents,
+though not the fields of the JSON. Messaging a running session is a workaround:
+for each event, `relay` writes a plugin to a temporary directory and runs a
+headless `claude -p --plugin-dir` whose slash command calls the plugin API's
+`$.session.send` without a model call. Claude Code updates may break it.
 
 `relay` follows Claude Code updates, will switch to an official mechanism
 once one exists, and may be dropped if it can no longer keep up.
-
-`SendMessage` addresses a session by name, so delivery to a running session
-fails while another session has the same name.
 
 ## Development
 

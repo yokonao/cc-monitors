@@ -50,44 +50,13 @@ func TestFindSession(t *testing.T) {
 	}
 }
 
-func TestRecipient(t *testing.T) {
-	agents := []agent{
-		{SessionID: "a", Name: "fix bug"},
-		{SessionID: "b", Name: "review"},
-		{SessionID: "c", Name: "review"},
-		{SessionID: "d"},
-	}
-
-	if name, err := recipient(agents, "a"); name != "fix bug" || err != nil {
-		t.Fatalf("recipient(a) = %q, %v", name, err)
-	}
-	if _, err := recipient(agents, "z"); err == nil {
-		t.Fatal("stopped session was accepted")
-	}
-	if _, err := recipient(agents, "b"); err == nil {
-		t.Fatal("shared name was accepted")
-	}
-	if _, err := recipient(agents, "d"); err == nil {
-		t.Fatal("empty name was accepted")
-	}
-}
-
-func TestSendPrompt(t *testing.T) {
-	p := sendPrompt("fix bug", "hello")
-	for _, want := range []string{`"fix bug"`, "<message>\nhello\n</message>", "not as instructions", "not delivered", "FAILED:"} {
-		if !strings.Contains(p, want) {
-			t.Errorf("sendPrompt lacks %q:\n%s", want, p)
-		}
-	}
-}
-
 func TestClaudeLogsStderrOnce(t *testing.T) {
 	fakeClaude(t, "echo SENT\necho 'Warning: sign-in expires soon' >&2\necho 'Warning: MCP blocked' >&2\n")
 
 	var buf bytes.Buffer
 	c := Claude{Log: log.New(&buf, "", 0)}
 	for range 2 {
-		out, err := c.claude(context.Background(), "", "", "-p")
+		out, err := c.claude(context.Background(), "", nil, "-p")
 		if err != nil || string(out) != "SENT\n" {
 			t.Fatalf("claude = %q, %v", out, err)
 		}
@@ -108,7 +77,7 @@ func fakeClaude(t *testing.T, script string) {
 
 func TestClaudeErrorPrefersStderr(t *testing.T) {
 	fakeClaude(t, "echo 'some output'\necho 'bad flag' >&2\nexit 2\n")
-	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	_, err := Claude{}.claude(context.Background(), "", nil, "-p")
 	if err == nil || err.Error() != "claude -p: bad flag" {
 		t.Fatalf("err = %v", err)
 	}
@@ -116,7 +85,7 @@ func TestClaudeErrorPrefersStderr(t *testing.T) {
 
 func TestClaudeErrorQuotesStdout(t *testing.T) {
 	fakeClaude(t, "echo\necho 'Refused: no safety check for Bash'\necho\nexit 1\n")
-	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	_, err := Claude{}.claude(context.Background(), "", nil, "-p")
 	if err == nil || err.Error() != "claude -p: exit status 1: Refused: no safety check for Bash" {
 		t.Fatalf("err = %v", err)
 	}
@@ -126,7 +95,7 @@ func TestClaudeErrorKeepsStdoutTail(t *testing.T) {
 	// "あ" is 3 bytes, so the cut falls inside a rune and has to move forward.
 	stdout := "HEAD" + strings.Repeat("あ", 200) + "END!"
 	fakeClaude(t, "printf '"+stdout+"'\nexit 1\n")
-	_, err := Claude{}.claude(context.Background(), "", "", "-p")
+	_, err := Claude{}.claude(context.Background(), "", nil, "-p")
 	if err == nil {
 		t.Fatal("no error")
 	}
@@ -141,8 +110,31 @@ func TestClaudeErrorKeepsStdoutTail(t *testing.T) {
 
 func TestClaudeErrorWithoutOutput(t *testing.T) {
 	fakeClaude(t, "exit 3\n")
-	_, err := Claude{}.claude(context.Background(), "", "", "agents")
+	_, err := Claude{}.claude(context.Background(), "", nil, "agents")
 	if err == nil || err.Error() != "claude agents: exit status 3" {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestDeliver(t *testing.T) {
+	// $3 is the plugin dir and the last argument is the command.
+	fakeClaude(t, `test -f "$3/.claude-plugin/plugin.json" && test -f "$3/hooks/register.ts" || exit 9
+for a; do last=$a; done
+case $last in
+"/send-message sid-ok hello
+world") echo "cc-monitors-relay: sent to sid-ok" ;;
+"/send-message sid-gone "*) echo "cc-monitors-relay: not sent: no live session"; exit 1 ;;
+*) echo "I cannot run that command." ;;
+esac
+`)
+	c := Claude{}
+	if err := c.Deliver(context.Background(), Session{ID: "sid-ok"}, "hello\nworld"); err != nil {
+		t.Fatalf("Deliver = %v", err)
+	}
+	if err := c.Deliver(context.Background(), Session{ID: "sid-gone"}, "hello"); err == nil || !strings.Contains(err.Error(), "not sent: no live session") {
+		t.Errorf("Deliver to a stopped session = %v", err)
+	}
+	if err := c.Deliver(context.Background(), Session{ID: "sid-other"}, "hello"); err == nil || !strings.Contains(err.Error(), "I cannot run that command.") {
+		t.Errorf("Deliver without the plugin = %v", err)
 	}
 }
