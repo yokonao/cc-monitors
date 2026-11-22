@@ -1,0 +1,1 @@
+{ "name": "cc-monitors-relay", "version": "0.1.0", "description": "/send-message <session id> <text> delivers relay events to a Claude Code session without a model call" }
