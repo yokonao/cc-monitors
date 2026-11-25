@@ -77,9 +77,10 @@ func (c Claude) Deliver(ctx context.Context, s Session, text string) error {
 
 	// Without the plugin the command reaches the model as a prompt, so it is a
 	// cheap model with no settings, MCP servers or permissions, and the reply
-	// tells whether the plugin ran.
+	// tells whether the plugin ran. No transcript is kept, so deliveries stay
+	// out of --resume.
 	out, err := c.claude(ctx, c.Dir, []string{"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"},
-		"-p", "--plugin-dir", dir, "--setting-sources", "",
+		"-p", "--plugin-dir", dir, "--no-session-persistence", "--setting-sources", "",
 		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`,
 		"--model", "haiku", "--permission-mode", "dontAsk",
 		"--", "/send-message "+s.ID+" "+text)
