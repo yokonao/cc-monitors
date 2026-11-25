@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `relay` runs its headless `claude -p` with `--no-session-persistence`, so deliveries no longer leave a transcript under `~/.claude/projects` or show up in `claude --resume`.
+
 ## v0.8.0 - 2026-11-23
 
 ### Changed

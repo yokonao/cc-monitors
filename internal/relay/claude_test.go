@@ -119,6 +119,7 @@ func TestClaudeErrorWithoutOutput(t *testing.T) {
 func TestDeliver(t *testing.T) {
 	// $3 is the plugin dir and the last argument is the command.
 	fakeClaude(t, `test -f "$3/.claude-plugin/plugin.json" && test -f "$3/hooks/register.ts" || exit 9
+test "$4" = --no-session-persistence || exit 8
 for a; do last=$a; done
 case $last in
 "/send-message sid-ok hello

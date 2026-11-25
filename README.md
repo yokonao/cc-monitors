@@ -258,7 +258,8 @@ Each event line is delivered as-is, prefixed with the monitor and target:
 though not the fields of the JSON. Messaging a running session is a workaround:
 for each event, `relay` writes a plugin to a temporary directory and runs a
 headless `claude -p --plugin-dir` whose slash command calls the plugin API's
-`$.session.send` without a model call. Claude Code updates may break it.
+`$.session.send` without a model call. The headless session keeps no
+transcript. Claude Code updates may break it.
 
 `relay` follows Claude Code updates, will switch to an official mechanism
 once one exists, and may be dropped if it can no longer keep up.
